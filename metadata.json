@@ -1,5 +1,5 @@
 {
-  "name": "BharatFlow AI Traffic System",
-  "description": "Enterprise-grade Traffic Management Dashboard for Indian Smart Cities. Features real-time LHT physics simulation, Gemini 2.5 AI optimization, and high-fidelity digital twin visualization.",
+  "name": "BharatFlow AI",
+  "description": "Enterprise Traffic Management Dashboard",
   "requestFramePermissions": []
 }

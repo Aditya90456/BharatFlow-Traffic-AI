@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { SimulationSection } from './components/SimulationSection';
 import { StatsCard } from './components/StatsCard';
+import { LoginPage } from './components/LoginPage';
+import { LandingPage } from './components/LandingPage';
+import { SignUpPage } from './components/SignUpPage';
 import { analyzeTraffic } from './services/geminiService';
 import { Intersection, Car, LightState, TrafficStats, GeminiAnalysis } from './types';
 import { GRID_SIZE, INITIAL_GREEN_DURATION, CITY_CONFIGS } from './constants';
@@ -9,11 +12,12 @@ import {
   ExclamationTriangleIcon, 
   ChartBarIcon, Squares2X2Icon, SparklesIcon, MapIcon,
   ClockIcon, BoltIcon, GlobeAltIcon, ServerIcon, SignalIcon,
-  ChevronRightIcon, MagnifyingGlassIcon, MapPinIcon, BuildingOffice2Icon
+  ChevronRightIcon, MagnifyingGlassIcon, MapPinIcon, BuildingOffice2Icon, ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 type TabId = 'dash' | 'map' | 'analytics';
+type ViewState = 'LANDING' | 'LOGIN' | 'SIGNUP' | 'DASHBOARD';
 
 const generateIntersections = (cityNames: string[]): Intersection[] => {
   const arr: Intersection[] = [];
@@ -35,6 +39,9 @@ const generateIntersections = (cityNames: string[]): Intersection[] => {
 };
 
 const App: React.FC = () => {
+  // App View State
+  const [viewState, setViewState] = useState<ViewState>('LANDING');
+
   const [currentCity, setCurrentCity] = useState<string>("Bangalore");
   const [isRunning, setIsRunning] = useState(true);
   const [intersections, setIntersections] = useState<Intersection[]>(() => generateIntersections(CITY_CONFIGS["Bangalore"]));
@@ -174,6 +181,40 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleLogout = () => {
+    setViewState('LANDING');
+    setLogs([]); // Clear session logs
+  };
+
+  // ROUTING LOGIC
+  if (viewState === 'LANDING') {
+    return (
+      <LandingPage 
+        onNavigateToLogin={() => setViewState('LOGIN')} 
+        onNavigateToSignUp={() => setViewState('SIGNUP')}
+      />
+    );
+  }
+
+  if (viewState === 'LOGIN') {
+    return (
+      <LoginPage 
+        onLogin={() => setViewState('DASHBOARD')} 
+        onNavigateToSignUp={() => setViewState('SIGNUP')}
+      />
+    );
+  }
+
+  if (viewState === 'SIGNUP') {
+    return (
+      <SignUpPage 
+        onSignUp={() => setViewState('DASHBOARD')}
+        onNavigateToLogin={() => setViewState('LOGIN')}
+      />
+    );
+  }
+
+  // DASHBOARD RENDER
   const selectedIntersection = intersections.find(i => i.id === selectedIntersectionId);
 
   const TABS: { id: TabId; icon: React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement>> }[] = [
@@ -183,14 +224,14 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="relative w-full h-screen bg-background bg-mesh text-gray-300 font-sans overflow-hidden flex flex-col">
+    <div className="relative w-full h-screen bg-background bg-mesh text-gray-300 font-sans overflow-hidden flex flex-col animate-in fade-in duration-700">
       
       {/* 1. TOP BAR HUD */}
       <header className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-background/80 backdrop-blur-md z-50">
         <div className="flex items-center gap-8">
            {/* Logo */}
            <div className="flex items-center gap-3">
-             <div className="w-9 h-9 rounded bg-gradient-to-br from-saffron to-red-600 flex items-center justify-center shadow-lg shadow-saffron/20 group cursor-pointer hover:scale-105 transition-transform">
+             <div className="w-9 h-9 rounded bg-gradient-to-br from-saffron to-red-600 flex items-center justify-center shadow-lg shadow-saffron/20 group cursor-pointer hover:scale-105 transition-transform" onClick={() => setViewState('LANDING')}>
                <GlobeAltIcon className="w-5 h-5 text-white group-hover:rotate-180 transition-transform duration-700" />
              </div>
              <div>
@@ -279,8 +320,12 @@ const App: React.FC = () => {
            ))}
            <div className="flex-1"></div>
            <div className="w-8 h-px bg-white/10"></div>
-           <button className="p-3 text-gray-600 hover:text-white transition-colors">
-              <ServerIcon className="w-5 h-5" />
+           <button 
+             onClick={handleLogout}
+             className="p-3 text-gray-600 hover:text-red-400 transition-colors group relative"
+             title="Logout"
+           >
+              <ArrowLeftOnRectangleIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
            </button>
         </nav>
 

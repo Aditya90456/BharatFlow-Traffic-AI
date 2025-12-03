@@ -3,8 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BharatFlow AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>BharatFlow AI | Smart Traffic Management</title>
+    <meta name="description" content="Next-Gen Traffic Control System powered by Gemini 2.5 AI. Features real-time LHT physics simulation for Indian Smart Cities.">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="BharatFlow AI - Smart Traffic Grid">
+    <meta property="og:description" content="Live Digital Twin of Indian City Traffic managed by Artificial Intelligence.">
+    <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Traffic_lights_at_night_in_Pune.jpg/1200px-Traffic_lights_at_night_in_Pune.jpg">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="BharatFlow AI">
+    <meta property="twitter:description" content="AI-driven Traffic Optimization for Indian Metros.">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700;800&display=swap" rel="stylesheet">
     <script>
@@ -112,12 +125,15 @@
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
-    "@heroicons/react/": "https://aistudiocdn.com/@heroicons/react@^2.2.0/"
+    "@heroicons/react/": "https://aistudiocdn.com/@heroicons/react@^2.2.0/",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
