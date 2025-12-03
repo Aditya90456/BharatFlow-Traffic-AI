@@ -1,5 +1,5 @@
 {
-  "name": "BharatFlow Traffic AI",
-  "description": "Next-gen traffic management for Indian Smart Cities. Monitor real-time congestion at major junctions like Silk Board and Cyber City, simulated with LHT physics and optimized by Gemini 2.5.",
+  "name": "BharatFlow AI Traffic System",
+  "description": "Enterprise-grade Traffic Management Dashboard for Indian Smart Cities. Features real-time LHT physics simulation, Gemini 2.5 AI optimization, and high-fidelity digital twin visualization.",
   "requestFramePermissions": []
 }

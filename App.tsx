@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { SimulationSection } from './components/SimulationSection';
 import { StatsCard } from './components/StatsCard';
 import { analyzeTraffic } from './services/geminiService';
@@ -12,6 +12,8 @@ import {
   ChevronRightIcon, MagnifyingGlassIcon, MapPinIcon, BuildingOffice2Icon
 } from '@heroicons/react/24/outline';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+
+type TabId = 'dash' | 'map' | 'analytics';
 
 const generateIntersections = (cityNames: string[]): Intersection[] => {
   const arr: Intersection[] = [];
@@ -49,13 +51,14 @@ const App: React.FC = () => {
   const [aiInsights, setAiInsights] = useState<GeminiAnalysis | null>(null);
   const [logs, setLogs] = useState<string[]>(["BharatFlow OS v3.0 connected...", "Satellite feed synced.", "IoT Sensors: 98% ONLINE"]);
   const [history, setHistory] = useState<{time: string, congestion: number, speed: number}[]>([]);
-  const [activeTab, setActiveTab] = useState<'dash' | 'map' | 'analytics'>('dash');
+  const [activeTab, setActiveTab] = useState<TabId>('dash');
   
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{type: 'CITY'|'JUNCTION', label: string, id?: string}[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const lastHistoryUpdate = useRef(0);
 
   const addLog = (msg: string) => {
     setLogs(prev => [ `> ${new Date().toLocaleTimeString('en-US', {hour12:false})} ${msg}`, ...prev].slice(0, 10));
@@ -70,21 +73,19 @@ const App: React.FC = () => {
       if (city !== currentCity) items.push({ type: 'CITY', label: city });
     });
 
-    // 2. Junctions (Use initial state logic or extract from current intersections if labels are stable)
-    // We can iterate the current intersections array since we only care about Labels/IDs which are stable per city
+    // 2. Junctions
     if (intersections.length > 0) {
        intersections.forEach(i => {
          items.push({ type: 'JUNCTION', label: i.label, id: i.id });
        });
     }
     return items;
-  }, [currentCity, intersections.length > 0 ? intersections[0].id : 'init']); 
-  // Dependency: Only re-run if city changes (implied by first ID change)
+  }, [currentCity, intersections]); 
 
   // Search Logic
   useEffect(() => {
     if (!searchQuery) {
-      setSearchResults(prev => prev.length === 0 ? prev : []); // Guard to prevent loop
+      setSearchResults([]);
       return;
     }
     const q = searchQuery.toLowerCase();
@@ -99,6 +100,7 @@ const App: React.FC = () => {
       setCurrentCity(result.label);
       setIntersections(generateIntersections(CITY_CONFIGS[result.label]));
       setCars([]); // Reset traffic for new city
+      setSelectedIntersectionId(null);
       addLog(`System migrated to ${result.label} Grid.`);
       setLogs(prev => [`> Initializing ${result.label} topology...`, ...prev]);
     } else if (result.type === 'JUNCTION' && result.id) {
@@ -109,7 +111,7 @@ const App: React.FC = () => {
     setShowSearch(false);
   };
 
-  const handleUpdateStats = (total: number, speed: number, queues: Record<string, number>) => {
+  const handleUpdateStats = useCallback((total: number, speed: number, queues: Record<string, number>) => {
     const totalQueued = Object.values(queues).reduce((a, b) => a + b, 0);
     const congestion = total > 0 ? (totalQueued / total) * 100 : 0;
     
@@ -123,14 +125,16 @@ const App: React.FC = () => {
     setStats(newStats);
     setQueueMap(queues);
 
-    if (Date.now() % 2000 < 50) {
+    const now = Date.now();
+    if (now - lastHistoryUpdate.current > 2000) {
+      lastHistoryUpdate.current = now;
       setHistory(prev => [...prev, {
         time: new Date().toLocaleTimeString([], { hour12: false, minute:'2-digit', second:'2-digit' }),
         congestion: newStats.congestionLevel,
         speed: parseFloat(newStats.avgSpeed.toFixed(1))
       }].slice(-30));
     }
-  };
+  }, []);
 
   const triggerAIAnalysis = async () => {
     if (isAnalyzing) return;
@@ -171,6 +175,12 @@ const App: React.FC = () => {
   };
 
   const selectedIntersection = intersections.find(i => i.id === selectedIntersectionId);
+
+  const TABS: { id: TabId; icon: React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement>> }[] = [
+    { id: 'dash', icon: Squares2X2Icon },
+    { id: 'map', icon: MapIcon },
+    { id: 'analytics', icon: ChartBarIcon }
+  ];
 
   return (
     <div className="relative w-full h-screen bg-background bg-mesh text-gray-300 font-sans overflow-hidden flex flex-col">
@@ -257,14 +267,10 @@ const App: React.FC = () => {
         
         {/* 2. LEFT SIDEBAR (Navigation) */}
         <nav className="w-16 glass rounded-2xl flex flex-col items-center py-6 gap-4 z-40">
-           {[
-             { id: 'dash', icon: Squares2X2Icon },
-             { id: 'map', icon: MapIcon },
-             { id: 'analytics', icon: ChartBarIcon }
-           ].map(tab => (
+           {TABS.map(tab => (
              <button 
                key={tab.id}
-               onClick={() => setActiveTab(tab.id as any)} 
+               onClick={() => setActiveTab(tab.id)} 
                className={`p-3 rounded-xl transition-all relative group ${activeTab === tab.id ? 'text-accent' : 'text-gray-500 hover:text-gray-300'}`}
              >
                 <div className={`absolute inset-0 bg-accent/10 rounded-xl scale-0 transition-transform ${activeTab === tab.id ? 'scale-100' : 'group-hover:scale-75'}`}></div>
@@ -339,7 +345,7 @@ const App: React.FC = () => {
                              <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                           </linearGradient>
                        </defs>
-                       <Area type="monotone" dataKey="congestion" stroke="#ef4444" strokeWidth={2} fill="url(#colorCongestion)" />
+                       <Area type="monotone" dataKey="congestion" stroke="#ef4444" strokeWidth={2} fill="url(#colorCongestion)" isAnimationActive={false} />
                     </AreaChart>
                  </ResponsiveContainer>
               </div>
