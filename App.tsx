@@ -278,19 +278,33 @@ const App: React.FC = () => {
            </button>
         </nav>
 
-        {/* 3. SIMULATION SECTION (Extracted) */}
-        <SimulationSection 
-           currentCity={currentCity}
-           isRunning={isRunning}
-           setIsRunning={setIsRunning}
-           intersections={intersections}
-           setIntersections={setIntersections}
-           cars={cars}
-           setCars={setCars}
-           onUpdateStats={handleUpdateStats}
-           onIntersectionSelect={setSelectedIntersectionId}
-           stats={stats}
-        />
+        {/* 3. CENTER STAGE (Tabs Logic) */}
+        {activeTab === 'dash' ? (
+           <SimulationSection 
+             currentCity={currentCity}
+             isRunning={isRunning}
+             setIsRunning={setIsRunning}
+             intersections={intersections}
+             setIntersections={setIntersections}
+             cars={cars}
+             setCars={setCars}
+             onUpdateStats={handleUpdateStats}
+             onIntersectionSelect={setSelectedIntersectionId}
+             stats={stats}
+          />
+        ) : (
+          <div className="flex-1 glass rounded-2xl flex items-center justify-center border border-white/5">
+            <div className="text-center">
+               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                 {activeTab === 'map' ? <MapIcon className="w-8 h-8 text-gray-500" /> : <ChartBarIcon className="w-8 h-8 text-gray-500" />}
+               </div>
+               <h3 className="text-lg font-bold text-gray-300">
+                  {activeTab === 'map' ? 'Geospatial View' : 'Analytics Engine'}
+               </h3>
+               <p className="text-sm text-gray-500 mt-2">Module currently initializing...</p>
+            </div>
+          </div>
+        )}
 
         {/* 4. RIGHT SIDEBAR (Intelligence Panel) */}
         <aside className="w-[360px] flex flex-col gap-4">
@@ -311,7 +325,7 @@ const App: React.FC = () => {
                 color="warning"
                 icon={<BoltIcon className="w-4 h-4"/>}
               />
-              <div className="col-span-2 h-24 bg-white/[0.02] border border-white/5 rounded-lg p-3 relative">
+              <div className="col-span-2 h-24 bg-white/[0.02] border border-white/5 rounded-lg p-3 relative min-h-0">
                  <div className="absolute top-2 right-2 flex gap-1">
                    <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>

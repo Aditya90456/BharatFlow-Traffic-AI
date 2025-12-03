@@ -11,6 +11,7 @@ interface SimulationCanvasProps {
   onUpdateStats: (totalCars: number, avgSpeed: number, queueMap: Record<string, number>) => void;
   isRunning: boolean;
   onIntersectionSelect: (id: string) => void;
+  scenarioKey: string; // Key to trigger hard reset (e.g. City Name)
 }
 
 export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
@@ -20,32 +21,28 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
   setCars,
   onUpdateStats,
   isRunning,
-  onIntersectionSelect
+  onIntersectionSelect,
+  scenarioKey
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameCountRef = useRef(0);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
 
   // SOURCE OF TRUTH: Local mutable state for the physics loop.
-  // We use this instead of props to ensure 60fps smoothness regardless of React render speed.
   const physicsState = useRef({
     intersections: intersections,
     cars: cars,
-    // Track initialization to avoid overwriting simulation with stale props on re-renders
-    initializedId: intersections[0]?.id 
+    currentScenarioKey: scenarioKey
   });
 
-  // 1. Sync Props to Physics State ONLY when the "Scenario" changes (e.g. City switch)
+  // Sync Props to Physics State ONLY when the "Scenario" changes (e.g. City switch)
   useLayoutEffect(() => {
-    const currentFirstId = intersections[0]?.id;
-    // If the city changed (different IDs), reset our local physics state to the new props
-    if (currentFirstId !== physicsState.current.initializedId) {
+    if (scenarioKey !== physicsState.current.currentScenarioKey) {
        physicsState.current.intersections = intersections;
        physicsState.current.cars = cars;
-       physicsState.current.initializedId = currentFirstId;
+       physicsState.current.currentScenarioKey = scenarioKey;
     }
-    // Note: We DO NOT sync on every render, because props might be "stale" compared to our loop
-  }, [intersections, cars]);
+  }, [intersections, cars, scenarioKey]);
 
 
   // Helper: Get Lane Center for Left-Hand Traffic (LHT)
@@ -141,21 +138,24 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
 
     // Helper to determine color based on density
     const getDensityColor = (count: number) => {
-      if (count > 8) return 'rgba(239, 68, 68, 0.6)'; // Red (High)
-      if (count > 4) return 'rgba(245, 158, 11, 0.5)'; // Amber (Med)
+      if (count > 5) return 'rgba(239, 68, 68, 0.7)'; // Red (High)
+      if (count > 2) return 'rgba(245, 158, 11, 0.6)'; // Amber (Med)
       return 'rgba(6, 182, 212, 0.3)'; // Cyan (Low)
     };
 
-    // Calculate densities
-    const vDensity: number[] = new Array(GRID_SIZE).fill(0);
-    const hDensity: number[] = new Array(GRID_SIZE).fill(0);
+    // Calculate densities PER LANE
+    const densityN: number[] = new Array(GRID_SIZE).fill(0);
+    const densityS: number[] = new Array(GRID_SIZE).fill(0);
+    const densityE: number[] = new Array(GRID_SIZE).fill(0);
+    const densityW: number[] = new Array(GRID_SIZE).fill(0);
     
     cars.forEach(c => {
-      // Simple bucket mapping
       const gridX = Math.floor(c.x / BLOCK_SIZE);
       const gridY = Math.floor(c.y / BLOCK_SIZE);
-      if (gridX >= 0 && gridX < GRID_SIZE && (c.dir === 'N' || c.dir === 'S')) vDensity[gridX]++;
-      if (gridY >= 0 && gridY < GRID_SIZE && (c.dir === 'E' || c.dir === 'W')) hDensity[gridY]++;
+      if (c.dir === 'N' && gridX >= 0 && gridX < GRID_SIZE) densityN[gridX]++;
+      if (c.dir === 'S' && gridX >= 0 && gridX < GRID_SIZE) densityS[gridX]++;
+      if (c.dir === 'E' && gridY >= 0 && gridY < GRID_SIZE) densityE[gridY]++;
+      if (c.dir === 'W' && gridY >= 0 && gridY < GRID_SIZE) densityW[gridY]++;
     });
 
     ctx.lineWidth = 2;
@@ -164,16 +164,16 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     // 1. Vertical Roads
     for (let x = 0; x < GRID_SIZE; x++) {
       const cx = (x + 0.5) * BLOCK_SIZE;
-      const color = getDensityColor(vDensity[x]);
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 4;
-
-      // Southbound (Left Lane)
+      
+      // Southbound (Left Lane in LHT)
       const sx = cx - laneOffset;
+      const colorS = getDensityColor(densityS[x]);
+      ctx.strokeStyle = colorS;
+      ctx.shadowColor = colorS;
+      ctx.shadowBlur = 4;
+      
       for (let y = -spacing + offset; y < height; y += spacing) {
         if (y < -20 || y > height + 20) continue;
-        // Check if inside intersection (don't draw over center)
         const intY = Math.floor(y / BLOCK_SIZE);
         const intCenterY = (intY + 0.5) * BLOCK_SIZE;
         if (Math.abs(y - intCenterY) < ROAD_WIDTH/2 - 10) continue;
@@ -185,8 +185,12 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ctx.stroke();
       }
 
-      // Northbound (Right Lane)
+      // Northbound (Right Lane in LHT)
       const nx = cx + laneOffset;
+      const colorN = getDensityColor(densityN[x]);
+      ctx.strokeStyle = colorN;
+      ctx.shadowColor = colorN;
+      
       for (let y = height + spacing - offset; y > 0; y -= spacing) {
         if (y < -20 || y > height + 20) continue;
         const intY = Math.floor(y / BLOCK_SIZE);
@@ -204,31 +208,13 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     // 2. Horizontal Roads
     for (let y = 0; y < GRID_SIZE; y++) {
       const cy = (y + 0.5) * BLOCK_SIZE;
-      const color = getDensityColor(hDensity[y]);
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
       
-      // Westbound (Top Lane)
-      const wx = cy - laneOffset; 
-      // Using 'wx' for Y coordinate of lane here? No, horizontal.
-      // cy is Y center. Lane is cy - laneOffset.
-      const laneY_West = cy - laneOffset;
+      // Eastbound (Top Lane in LHT)
+      const ex = cy - laneOffset; 
+      const colorE = getDensityColor(densityE[y]);
+      ctx.strokeStyle = colorE;
+      ctx.shadowColor = colorE;
       
-      for (let x = width + spacing - offset; x > 0; x -= spacing) {
-        if (x < -20 || x > width + 20) continue;
-        const intX = Math.floor(x / BLOCK_SIZE);
-        const intCenterX = (intX + 0.5) * BLOCK_SIZE;
-        if (Math.abs(x - intCenterX) < ROAD_WIDTH/2 - 10) continue;
-
-        ctx.beginPath();
-        ctx.moveTo(x + arrowSize, laneY_West - arrowSize);
-        ctx.lineTo(x, laneY_West);
-        ctx.lineTo(x + arrowSize, laneY_West + arrowSize);
-        ctx.stroke();
-      }
-
-      // Eastbound (Bottom Lane)
-      const laneY_East = cy + laneOffset;
       for (let x = -spacing + offset; x < width; x += spacing) {
         if (x < -20 || x > width + 20) continue;
         const intX = Math.floor(x / BLOCK_SIZE);
@@ -236,9 +222,28 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         if (Math.abs(x - intCenterX) < ROAD_WIDTH/2 - 10) continue;
 
         ctx.beginPath();
-        ctx.moveTo(x - arrowSize, laneY_East - arrowSize);
-        ctx.lineTo(x, laneY_East);
-        ctx.lineTo(x - arrowSize, laneY_East + arrowSize);
+        ctx.moveTo(x - arrowSize, ex - arrowSize);
+        ctx.lineTo(x, ex);
+        ctx.lineTo(x - arrowSize, ex + arrowSize);
+        ctx.stroke();
+      }
+
+      // Westbound (Bottom Lane in LHT)
+      const wx = cy + laneOffset;
+      const colorW = getDensityColor(densityW[y]);
+      ctx.strokeStyle = colorW;
+      ctx.shadowColor = colorW;
+
+      for (let x = width + spacing - offset; x > 0; x -= spacing) {
+        if (x < -20 || x > width + 20) continue;
+        const intX = Math.floor(x / BLOCK_SIZE);
+        const intCenterX = (intX + 0.5) * BLOCK_SIZE;
+        if (Math.abs(x - intCenterX) < ROAD_WIDTH/2 - 10) continue;
+
+        ctx.beginPath();
+        ctx.moveTo(x + arrowSize, wx - arrowSize);
+        ctx.lineTo(x, wx);
+        ctx.lineTo(x + arrowSize, wx + arrowSize);
         ctx.stroke();
       }
     }
@@ -439,8 +444,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     const render = () => {
       frameCountRef.current++;
       
-      // Use Local Physics State for next frame calculation
-      // This decouples physics from React render cycle
       const currentIntersections = physicsState.current.intersections;
       const currentCars = physicsState.current.cars;
       
@@ -560,8 +563,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       }
 
       // Sync with React State (UI)
-      // Note: This triggers a re-render of App, but because we use physicsState.current for the next frame,
-      // we are immune to the timing/stale data of that re-render.
       setIntersections(nextIntersections);
       setCars(nextCars);
       

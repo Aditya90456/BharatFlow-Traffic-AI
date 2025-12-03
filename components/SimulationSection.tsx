@@ -94,6 +94,7 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                       onUpdateStats={onUpdateStats}
                       isRunning={isRunning}
                       onIntersectionSelect={onIntersectionSelect}
+                      scenarioKey={currentCity}
                    />
                    
                    {/* Overlay Stats - Floating Glass Cards */}
