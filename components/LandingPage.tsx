@@ -1,13 +1,11 @@
-
 import React from 'react';
 import { GlobeAltIcon, ArrowRightIcon, CpuChipIcon, ChartBarIcon, ShieldCheckIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 
 interface LandingPageProps {
-  onNavigateToLogin: () => void;
-  onNavigateToSignUp: () => void;
+  onNavigate: (page: string) => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToLogin, onNavigateToSignUp }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   return (
     <div className="min-h-screen bg-[#050508] text-white font-sans overflow-x-hidden selection:bg-accent selection:text-black">
       
@@ -18,7 +16,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToLogin, onN
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-40 backdrop-blur-md border-b border-white/5 bg-[#050508]/80">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3 group cursor-pointer">
+          <div 
+            className="flex items-center gap-3 group cursor-pointer"
+            onClick={() => onNavigate('LANDING')}
+          >
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-saffron to-red-600 flex items-center justify-center shadow-lg shadow-saffron/20 group-hover:scale-110 transition-transform duration-500">
               <GlobeAltIcon className="w-6 h-6 text-white group-hover:rotate-180 transition-transform duration-700" />
             </div>
@@ -33,23 +34,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToLogin, onN
           </div>
 
           <div className="hidden md:flex items-center gap-8">
-            {['Features', 'Live Map', 'Public Data', 'API'].map((item) => (
-              <a key={item} href="#" className="text-sm font-medium text-gray-400 hover:text-accent transition-colors relative group">
-                {item}
+            {[
+              { label: 'Features', id: 'FEATURES' },
+              { label: 'Live Map', id: 'PUBLIC_MAP' },
+              { label: 'Public Data', id: 'PUBLIC_DATA' },
+              { label: 'API', id: 'API_DOCS' }
+            ].map((item) => (
+              <button 
+                key={item.id} 
+                onClick={() => onNavigate(item.id)}
+                className="text-sm font-medium text-gray-400 hover:text-accent transition-colors relative group"
+              >
+                {item.label}
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-accent transition-all group-hover:w-full"></span>
-              </a>
+              </button>
             ))}
           </div>
 
           <div className="flex items-center gap-4">
              <button 
-                onClick={onNavigateToSignUp}
+                onClick={() => onNavigate('SIGNUP')}
                 className="text-xs font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-wider hidden sm:block"
              >
                 Register
              </button>
              <button 
-                onClick={onNavigateToLogin}
+                onClick={() => onNavigate('LOGIN')}
                 className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-accent/50 transition-all group"
              >
                 <span className="text-sm font-bold tracking-wide">Access Grid</span>
@@ -83,14 +93,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToLogin, onN
 
             <div className="flex flex-wrap gap-4 pt-4">
               <button 
-                onClick={onNavigateToLogin}
+                onClick={() => onNavigate('LOGIN')}
                 className="px-8 py-4 bg-accent text-black font-bold rounded-lg hover:bg-cyan-300 transition-colors shadow-[0_0_20px_rgba(6,182,212,0.4)] flex items-center gap-2 group"
               >
                 <span>Initialize Dashboard</span>
                 <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
               <button 
-                 onClick={onNavigateToSignUp}
+                 onClick={() => onNavigate('SIGNUP')}
                  className="px-8 py-4 bg-transparent border border-white/20 text-white font-bold rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2 group"
               >
                 <span>Request Clearance</span>

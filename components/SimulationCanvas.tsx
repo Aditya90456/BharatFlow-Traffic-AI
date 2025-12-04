@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useLayoutEffect } from 'react';
 import { GRID_SIZE, BLOCK_SIZE, ROAD_WIDTH, CAR_SIZE, YELLOW_DURATION, MAX_SPEED, ACCELERATION, DECELERATION, getCanvasSize } from '../constants';
 import { Intersection, Car, LightState, VehicleType } from '../types';
@@ -11,7 +10,7 @@ interface SimulationCanvasProps {
   onUpdateStats: (totalCars: number, avgSpeed: number, queueMap: Record<string, number>) => void;
   isRunning: boolean;
   onIntersectionSelect: (id: string) => void;
-  scenarioKey: string; // Key to trigger hard reset (e.g. City Name)
+  scenarioKey: string;
 }
 
 export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
@@ -28,14 +27,14 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
   const frameCountRef = useRef(0);
   const requestRef = useRef<number>(0);
 
-  // SOURCE OF TRUTH: Local mutable state for the physics loop.
+  // SOURCE OF TRUTH: Local mutable state for the physics loop
   const physicsState = useRef({
     intersections: intersections,
     cars: cars,
     currentScenarioKey: scenarioKey
   });
 
-  // Sync Props to Physics State ONLY when the "Scenario" changes (e.g. City switch)
+  // Sync Props to Physics State on Scenario Change
   useLayoutEffect(() => {
     if (scenarioKey !== physicsState.current.currentScenarioKey) {
        physicsState.current.intersections = intersections;
@@ -44,42 +43,34 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     }
   }, [intersections, cars, scenarioKey]);
 
-
-  // Helper: Get Lane Center for Left-Hand Traffic (LHT)
+  // Helper: Get Lane Center (LHT)
   const getLaneCenter = (gridIdx: number, isVertical: boolean, isForward: boolean) => {
     const roadCenter = (gridIdx + 0.5) * BLOCK_SIZE;
     const offset = ROAD_WIDTH / 4;
-    
-    if (isVertical) {
-      // isForward = Southbound. Left (West).
-      return isForward ? roadCenter - offset : roadCenter + offset;
-    } else {
-      // Horizontal
-      // isForward = Eastbound. Left (North).
-      return isForward ? roadCenter - offset : roadCenter + offset;
-    }
+    return isForward ? (isVertical ? roadCenter - offset : roadCenter - offset) : (isVertical ? roadCenter + offset : roadCenter + offset);
   };
 
-  // Spawn Logic
+  // Improved Spawn Logic
   const spawnCar = (currentCars: Car[]): Car | null => {
-    const edge = Math.floor(Math.random() * 4); // 0: Top, 1: Right, 2: Bottom, 3: Left
+    const edge = Math.floor(Math.random() * 4); 
     const laneIdx = Math.floor(Math.random() * GRID_SIZE);
     
     let x = 0, y = 0, dir: 'N'|'S'|'E'|'W' = 'S';
     
-    if (edge === 0) { // Top Edge (Spawning Southbound)
+    // Logic for LHT Spawning
+    if (edge === 0) { // Spawning Top (Southbound, Left Side)
       x = getLaneCenter(laneIdx, true, true);
       y = -CAR_SIZE * 3;
       dir = 'S';
-    } else if (edge === 1) { // Right Edge (Spawning Westbound)
+    } else if (edge === 1) { // Spawning Right (Westbound, Bottom Side)
       x = GRID_SIZE * BLOCK_SIZE + CAR_SIZE * 3;
-      y = getLaneCenter(laneIdx, false, false);
+      y = getLaneCenter(laneIdx, false, false); 
       dir = 'W';
-    } else if (edge === 2) { // Bottom Edge (Spawning Northbound)
+    } else if (edge === 2) { // Spawning Bottom (Northbound, Right Side)
       x = getLaneCenter(laneIdx, true, false);
       y = GRID_SIZE * BLOCK_SIZE + CAR_SIZE * 3;
       dir = 'N';
-    } else { // Left Edge (Spawning Eastbound)
+    } else { // Spawning Left (Eastbound, Top Side)
       x = -CAR_SIZE * 3;
       y = getLaneCenter(laneIdx, false, true);
       dir = 'E';
@@ -93,17 +84,17 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
 
     if (r > 0.92) {
       type = 'BUS';
-      length = CAR_SIZE * 3;
-      width = CAR_SIZE * 1.2;
+      length = CAR_SIZE * 3.5;
+      width = CAR_SIZE * 1.3;
       maxSpeed = MAX_SPEED * 0.7; 
     } else if (r > 0.65) {
       type = 'AUTO';
-      length = CAR_SIZE * 0.9;
-      width = CAR_SIZE * 0.65;
+      length = CAR_SIZE * 0.8;
+      width = CAR_SIZE * 0.7;
       maxSpeed = MAX_SPEED * 0.85;
     }
 
-    const safeDistance = length * 2.5;
+    const safeDistance = length * 3;
     const isBlocked = currentCars.some(c => 
       Math.abs(c.x - x) < safeDistance && Math.abs(c.y - y) < safeDistance
     );
@@ -124,26 +115,124 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     };
   };
 
-  // --- Drawing Functions ---
-  
+  const drawCityBackground = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // 1. Base Layer
+    ctx.fillStyle = '#030305';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. City Blocks (Pseudo-3D)
+    for(let x = 0; x <= GRID_SIZE; x++) {
+      const xStart = x === 0 ? 0 : (x - 0.5) * BLOCK_SIZE + ROAD_WIDTH/2;
+      const xEnd = x === GRID_SIZE ? width : (x + 0.5) * BLOCK_SIZE - ROAD_WIDTH/2;
+      
+      if (xEnd > xStart) {
+        for(let y = 0; y <= GRID_SIZE; y++) {
+          const yStart = y === 0 ? 0 : (y - 0.5) * BLOCK_SIZE + ROAD_WIDTH/2;
+          const yEnd = y === GRID_SIZE ? height : (y + 0.5) * BLOCK_SIZE - ROAD_WIDTH/2;
+          
+          if (yEnd > yStart) {
+             const w = xEnd - xStart;
+             const h = yEnd - yStart;
+
+             // Base Block
+             ctx.fillStyle = '#0A0B10';
+             ctx.fillRect(xStart, yStart, w, h);
+
+             // Inner details (Circuit pattern)
+             ctx.strokeStyle = '#13141C';
+             ctx.lineWidth = 2;
+             ctx.strokeRect(xStart + 10, yStart + 10, w - 20, h - 20);
+
+             // "Building" Extrusions
+             ctx.fillStyle = '#0F111A';
+             const bSize = Math.min(w, h) * 0.6;
+             const bx = xStart + (w - bSize)/2;
+             const by = yStart + (h - bSize)/2;
+             
+             // Shadow
+             ctx.fillStyle = 'rgba(0,0,0,0.5)';
+             ctx.fillRect(bx + 4, by + 4, bSize, bSize);
+             
+             // Top Face
+             ctx.fillStyle = '#181A24';
+             ctx.fillRect(bx, by, bSize, bSize);
+             
+             // Tech Accent on Roof
+             ctx.fillStyle = '#1E293B';
+             ctx.fillRect(bx + bSize*0.2, by + bSize*0.2, bSize*0.6, bSize*0.6);
+             
+             // Glow Dot (Rooftop Light)
+             if ((x+y)%2 === 0) {
+               ctx.fillStyle = '#06B6D4';
+               ctx.globalAlpha = 0.3;
+               ctx.beginPath();
+               ctx.arc(bx + bSize*0.8, by + bSize*0.2, 2, 0, Math.PI*2);
+               ctx.fill();
+               ctx.globalAlpha = 1.0;
+             }
+          }
+        }
+      }
+    }
+  };
+
+  const drawRoads = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // Road Surface
+    ctx.lineWidth = ROAD_WIDTH;
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = '#111218'; // Dark Asphalt
+    
+    // Vertical
+    for (let x = 0; x < GRID_SIZE; x++) {
+      const cx = (x + 0.5) * BLOCK_SIZE;
+      
+      // Road Bed
+      ctx.strokeStyle = '#111218';
+      ctx.lineWidth = ROAD_WIDTH;
+      ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, height); ctx.stroke();
+      
+      // Lane Dividers (Glowing)
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([12, 18]);
+      ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, height); ctx.stroke();
+      
+      // Edges (Neon Lines)
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.15)'; // Cyan faint glow
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx - ROAD_WIDTH/2, 0); ctx.lineTo(cx - ROAD_WIDTH/2, height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + ROAD_WIDTH/2, 0); ctx.lineTo(cx + ROAD_WIDTH/2, height); ctx.stroke();
+    }
+    
+    // Horizontal
+    for (let y = 0; y < GRID_SIZE; y++) {
+      const cy = (y + 0.5) * BLOCK_SIZE;
+      
+      // Road Bed
+      ctx.strokeStyle = '#111218';
+      ctx.lineWidth = ROAD_WIDTH;
+      ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.stroke();
+      
+      // Lane Dividers
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([12, 18]);
+      ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.stroke();
+
+      // Edges
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, cy - ROAD_WIDTH/2); ctx.lineTo(width, cy - ROAD_WIDTH/2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, cy + ROAD_WIDTH/2); ctx.lineTo(width, cy + ROAD_WIDTH/2); ctx.stroke();
+    }
+  };
+
   const drawTrafficFlowOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number, cars: Car[], frame: number) => {
     ctx.save();
     
-    // Animation params
-    const spacing = 60; 
-    const speed = 1.5;
-    const offset = (frame * speed) % spacing;
-    const arrowSize = 4;
-    const laneOffset = ROAD_WIDTH / 4;
-
-    // Helper to determine color based on density
-    const getDensityColor = (count: number) => {
-      if (count > 5) return 'rgba(239, 68, 68, 0.7)'; // Red (High)
-      if (count > 2) return 'rgba(245, 158, 11, 0.6)'; // Amber (Med)
-      return 'rgba(6, 182, 212, 0.3)'; // Cyan (Low)
-    };
-
-    // Calculate densities PER LANE
+    // Calculate per-lane density
     const densityN: number[] = new Array(GRID_SIZE).fill(0);
     const densityS: number[] = new Array(GRID_SIZE).fill(0);
     const densityE: number[] = new Array(GRID_SIZE).fill(0);
@@ -158,229 +247,82 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       if (c.dir === 'W' && gridY >= 0 && gridY < GRID_SIZE) densityW[gridY]++;
     });
 
+    const getDensityColor = (count: number) => {
+      if (count > 6) return 'rgba(239, 68, 68, 0.8)'; // Red
+      if (count > 3) return 'rgba(245, 158, 11, 0.7)'; // Amber
+      return 'rgba(6, 182, 212, 0.2)'; // Cyan
+    };
+
+    const spacing = 80; 
+    const speed = 1.0;
+    const offset = (frame * speed) % spacing;
+    const arrowSize = 3;
+    const laneOffset = ROAD_WIDTH / 4;
+
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
 
-    // 1. Vertical Roads
+    // Draw Flows
+    const drawArrows = (sx: number, sy: number, ex: number, ey: number, density: number, isVert: boolean, dirMultiplier: number) => {
+      const color = getDensityColor(density);
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = density > 3 ? 6 : 0;
+
+      if (isVert) {
+        // Vertical
+        for (let y = (dirMultiplier > 0 ? -spacing + offset : height + spacing - offset); 
+             (dirMultiplier > 0 ? y < height : y > 0); 
+             y += (dirMultiplier * spacing)) {
+             
+             // Check intersection gap
+             const intY = Math.floor(y / BLOCK_SIZE);
+             const intCenterY = (intY + 0.5) * BLOCK_SIZE;
+             if (Math.abs(y - intCenterY) < ROAD_WIDTH/2) continue;
+
+             ctx.beginPath();
+             ctx.moveTo(sx - arrowSize, y - (dirMultiplier*arrowSize));
+             ctx.lineTo(sx, y);
+             ctx.lineTo(sx + arrowSize, y - (dirMultiplier*arrowSize));
+             ctx.stroke();
+        }
+      } else {
+        // Horizontal
+        for (let x = (dirMultiplier > 0 ? -spacing + offset : width + spacing - offset);
+             (dirMultiplier > 0 ? x < width : x > 0);
+             x += (dirMultiplier * spacing)) {
+
+             const intX = Math.floor(x / BLOCK_SIZE);
+             const intCenterX = (intX + 0.5) * BLOCK_SIZE;
+             if (Math.abs(x - intCenterX) < ROAD_WIDTH/2) continue;
+
+             ctx.beginPath();
+             ctx.moveTo(x - (dirMultiplier*arrowSize), sy - arrowSize);
+             ctx.lineTo(x, sy);
+             ctx.lineTo(x - (dirMultiplier*arrowSize), sy + arrowSize);
+             ctx.stroke();
+        }
+      }
+    };
+
+    // Render Loops
     for (let x = 0; x < GRID_SIZE; x++) {
       const cx = (x + 0.5) * BLOCK_SIZE;
-      
-      // Southbound (Left Lane in LHT)
-      const sx = cx - laneOffset;
-      const colorS = getDensityColor(densityS[x]);
-      ctx.strokeStyle = colorS;
-      ctx.shadowColor = colorS;
-      ctx.shadowBlur = 4;
-      
-      for (let y = -spacing + offset; y < height; y += spacing) {
-        if (y < -20 || y > height + 20) continue;
-        const intY = Math.floor(y / BLOCK_SIZE);
-        const intCenterY = (intY + 0.5) * BLOCK_SIZE;
-        if (Math.abs(y - intCenterY) < ROAD_WIDTH/2 - 10) continue;
-
-        ctx.beginPath();
-        ctx.moveTo(sx - arrowSize, y - arrowSize);
-        ctx.lineTo(sx, y);
-        ctx.lineTo(sx + arrowSize, y - arrowSize);
-        ctx.stroke();
-      }
-
-      // Northbound (Right Lane in LHT)
-      const nx = cx + laneOffset;
-      const colorN = getDensityColor(densityN[x]);
-      ctx.strokeStyle = colorN;
-      ctx.shadowColor = colorN;
-      
-      for (let y = height + spacing - offset; y > 0; y -= spacing) {
-        if (y < -20 || y > height + 20) continue;
-        const intY = Math.floor(y / BLOCK_SIZE);
-        const intCenterY = (intY + 0.5) * BLOCK_SIZE;
-        if (Math.abs(y - intCenterY) < ROAD_WIDTH/2 - 10) continue;
-
-        ctx.beginPath();
-        ctx.moveTo(nx - arrowSize, y + arrowSize);
-        ctx.lineTo(nx, y);
-        ctx.lineTo(nx + arrowSize, y + arrowSize);
-        ctx.stroke();
-      }
+      drawArrows(cx - laneOffset, 0, 0, 0, densityS[x], true, 1);  // Southbound (Left)
+      drawArrows(cx + laneOffset, 0, 0, 0, densityN[x], true, -1); // Northbound (Right)
     }
-
-    // 2. Horizontal Roads
     for (let y = 0; y < GRID_SIZE; y++) {
       const cy = (y + 0.5) * BLOCK_SIZE;
-      
-      // Eastbound (Top Lane in LHT)
-      const ex = cy - laneOffset; 
-      const colorE = getDensityColor(densityE[y]);
-      ctx.strokeStyle = colorE;
-      ctx.shadowColor = colorE;
-      
-      for (let x = -spacing + offset; x < width; x += spacing) {
-        if (x < -20 || x > width + 20) continue;
-        const intX = Math.floor(x / BLOCK_SIZE);
-        const intCenterX = (intX + 0.5) * BLOCK_SIZE;
-        if (Math.abs(x - intCenterX) < ROAD_WIDTH/2 - 10) continue;
-
-        ctx.beginPath();
-        ctx.moveTo(x - arrowSize, ex - arrowSize);
-        ctx.lineTo(x, ex);
-        ctx.lineTo(x - arrowSize, ex + arrowSize);
-        ctx.stroke();
-      }
-
-      // Westbound (Bottom Lane in LHT)
-      const wx = cy + laneOffset;
-      const colorW = getDensityColor(densityW[y]);
-      ctx.strokeStyle = colorW;
-      ctx.shadowColor = colorW;
-
-      for (let x = width + spacing - offset; x > 0; x -= spacing) {
-        if (x < -20 || x > width + 20) continue;
-        const intX = Math.floor(x / BLOCK_SIZE);
-        const intCenterX = (intX + 0.5) * BLOCK_SIZE;
-        if (Math.abs(x - intCenterX) < ROAD_WIDTH/2 - 10) continue;
-
-        ctx.beginPath();
-        ctx.moveTo(x + arrowSize, wx - arrowSize);
-        ctx.lineTo(x, wx);
-        ctx.lineTo(x + arrowSize, wx + arrowSize);
-        ctx.stroke();
-      }
+      drawArrows(0, cy - laneOffset, 0, 0, densityE[y], false, 1);  // Eastbound (Top)
+      drawArrows(0, cy + laneOffset, 0, 0, densityW[y], false, -1); // Westbound (Bottom)
     }
 
     ctx.shadowBlur = 0;
     ctx.restore();
   };
 
-  const draw = (ctx: CanvasRenderingContext2D, currentIntersections: Intersection[], currentCars: Car[]) => {
-    const { width, height } = getCanvasSize();
-    ctx.clearRect(0, 0, width, height);
-
-    // 1. City Background
-    ctx.fillStyle = '#050508';
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.fillStyle = '#0F1016';
-    for(let x = 0; x <= GRID_SIZE; x++) {
-      const xStart = x === 0 ? 0 : (x - 0.5) * BLOCK_SIZE + ROAD_WIDTH/2;
-      const xEnd = x === GRID_SIZE ? width : (x + 0.5) * BLOCK_SIZE - ROAD_WIDTH/2;
-      if (xEnd > xStart) {
-        for(let y = 0; y <= GRID_SIZE; y++) {
-          const yStart = y === 0 ? 0 : (y - 0.5) * BLOCK_SIZE + ROAD_WIDTH/2;
-          const yEnd = y === GRID_SIZE ? height : (y + 0.5) * BLOCK_SIZE - ROAD_WIDTH/2;
-          if (yEnd > yStart) {
-            ctx.fillStyle = '#0F1016';
-            ctx.fillRect(xStart, yStart, xEnd - xStart, yEnd - yStart);
-            ctx.fillStyle = '#15161e';
-            const pad = 10;
-            if (xEnd - xStart > pad*2 && yEnd - yStart > pad*2) {
-              ctx.fillRect(xStart + pad, yStart + pad, xEnd - xStart - pad*2, yEnd - yStart - pad*2);
-              ctx.fillStyle = '#1a1c25';
-              ctx.fillRect(xStart + pad + 15, yStart + pad + 15, xEnd - xStart - pad*2 - 30, yEnd - yStart - pad*2 - 40);
-            }
-          }
-        }
-      }
-    }
-
-    // 2. Roads
-    ctx.lineWidth = ROAD_WIDTH;
-    ctx.lineCap = 'butt';
-    ctx.strokeStyle = '#1c1e26';
-    for (let x = 0; x < GRID_SIZE; x++) {
-      const cx = (x + 0.5) * BLOCK_SIZE;
-      ctx.beginPath();
-      ctx.moveTo(cx, 0);
-      ctx.lineTo(cx, height);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.strokeStyle = '#2a2d3a';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([15, 15]);
-      ctx.moveTo(cx, 0);
-      ctx.lineTo(cx, height);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.lineWidth = ROAD_WIDTH;
-      ctx.strokeStyle = '#1c1e26';
-    }
-    for (let y = 0; y < GRID_SIZE; y++) {
-      const cy = (y + 0.5) * BLOCK_SIZE;
-      ctx.beginPath();
-      ctx.moveTo(0, cy);
-      ctx.lineTo(width, cy);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.strokeStyle = '#2a2d3a';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([15, 15]);
-      ctx.moveTo(0, cy);
-      ctx.lineTo(width, cy);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.lineWidth = ROAD_WIDTH;
-      ctx.strokeStyle = '#1c1e26';
-    }
-
-    // 2.5 TRAFFIC FLOW OVERLAY
-    drawTrafficFlowOverlay(ctx, width, height, currentCars, frameCountRef.current);
-
-    // 3. Intersections
-    currentIntersections.forEach(i => {
-      const cx = (i.x + 0.5) * BLOCK_SIZE;
-      const cy = (i.y + 0.5) * BLOCK_SIZE;
-      const rw = ROAD_WIDTH;
-
-      ctx.fillStyle = '#374151';
-      const cwOffset = rw * 0.7;
-      const cwSize = rw;
-      const cwThick = 6;
-      ctx.fillRect(cx - cwSize/2, cy - cwOffset, cwSize, cwThick);
-      ctx.fillRect(cx - cwSize/2, cy + cwOffset, cwSize, cwThick);
-      ctx.fillRect(cx - cwOffset, cy - cwSize/2, cwThick, cwSize);
-      ctx.fillRect(cx + cwOffset, cy - cwSize/2, cwThick, cwSize);
-
-      const drawLight = (lx: number, ly: number, state: LightState) => {
-        ctx.beginPath();
-        ctx.arc(lx, ly, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#1f2937';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(lx, ly, 3, 0, Math.PI * 2);
-        if (state === LightState.GREEN) {
-          ctx.fillStyle = '#10b981';
-          ctx.shadowColor = '#10b981';
-          ctx.shadowBlur = 8;
-        } else if (state === LightState.YELLOW) {
-          ctx.fillStyle = '#f59e0b';
-          ctx.shadowColor = '#f59e0b';
-          ctx.shadowBlur = 8;
-        } else {
-          ctx.fillStyle = '#ef4444';
-          ctx.shadowColor = '#ef4444';
-          ctx.shadowBlur = 8;
-        }
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      };
-
-      drawLight(cx - rw/2 - 8, cy - rw/2 - 8, i.lightState.ns);
-      drawLight(cx + rw/2 + 8, cy + rw/2 + 8, i.lightState.ns);
-      drawLight(cx - rw/2 - 8, cy + rw/2 + 8, i.lightState.ew);
-      drawLight(cx + rw/2 + 8, cy - rw/2 - 8, i.lightState.ew);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '700 10px Rajdhani';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(i.label, cx, cy);
-      ctx.shadowBlur = 0;
-    });
-
-    // 4. Cars
-    currentCars.forEach(car => {
+  const drawCars = (ctx: CanvasRenderingContext2D, carsToDraw: Car[]) => {
+    carsToDraw.forEach(car => {
       ctx.save();
       ctx.translate(car.x, car.y);
       let angle = 0;
@@ -389,55 +331,124 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       if (car.dir === 'E') angle = Math.PI / 2;
       ctx.rotate(angle);
 
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
       ctx.fillRect(-car.width/2 + 2, -car.length/2 + 2, car.width, car.length);
 
-      if (car.type === 'AUTO') ctx.fillStyle = '#fbbf24';
-      else if (car.type === 'BUS') ctx.fillStyle = '#ef4444';
-      else ctx.fillStyle = '#cbd5e1';
+      // Body Color
+      if (car.type === 'AUTO') ctx.fillStyle = '#FBBF24'; // Auto Yellow
+      else if (car.type === 'BUS') ctx.fillStyle = '#EF4444'; // Bus Red
+      else ctx.fillStyle = '#E2E8F0'; // Car White/Silver
 
+      // Shape
       if (car.type === 'AUTO') {
         ctx.beginPath();
         ctx.moveTo(0, -car.length/2);
         ctx.lineTo(car.width/2, car.length/2);
         ctx.lineTo(-car.width/2, car.length/2);
         ctx.fill();
-        ctx.fillStyle = '#000';
+        // Roof
+        ctx.fillStyle = '#111';
         ctx.fillRect(-car.width/3, -car.length/4, car.width/1.5, car.length/2);
       } else {
+        // Car/Bus Body
         ctx.beginPath();
-        ctx.roundRect(-car.width/2, -car.length/2, car.width, car.length, 2);
+        ctx.roundRect(-car.width/2, -car.length/2, car.width, car.length, car.type === 'BUS' ? 1 : 2);
         ctx.fill();
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(-car.width/2 + 1, -car.length/2 + 2, car.width - 2, car.length * 0.2);
-        if (car.type === 'BUS') {
-           ctx.fillStyle = '#ffffff';
-           ctx.fillRect(-car.width/2 + 2, -car.length * 0.2, car.width - 4, car.length * 0.5);
-        }
+        
+        // Windshield / Roof
+        ctx.fillStyle = '#1E293B';
+        const glassMargin = car.type === 'BUS' ? 2 : 1;
+        ctx.fillRect(-car.width/2 + glassMargin, -car.length/2 + 3, car.width - glassMargin*2, car.length * 0.25);
+        ctx.fillRect(-car.width/2 + glassMargin, car.length/2 - car.length * 0.25 - 2, car.width - glassMargin*2, car.length * 0.20);
       }
 
-      ctx.fillStyle = '#fbbf24';
-      ctx.globalAlpha = 0.8;
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 6;
-      ctx.fillRect(-car.width/2 + 1, -car.length/2 - 2, 2, 2);
-      ctx.fillRect(car.width/2 - 3, -car.length/2 - 2, 2, 2);
+      // Headlights (Yellow/White Glow)
+      ctx.fillStyle = '#FEF08A';
+      ctx.shadowColor = '#FEF08A';
+      ctx.shadowBlur = 8;
+      ctx.fillRect(-car.width/2 + 1, -car.length/2 - 1, 2, 2);
+      ctx.fillRect(car.width/2 - 3, -car.length/2 - 1, 2, 2);
       
-      if (car.state === 'STOPPED') {
-        ctx.fillStyle = '#ef4444';
-        ctx.shadowColor = '#ef4444';
-        ctx.shadowBlur = 8;
-      } else {
-        ctx.fillStyle = '#7f1d1d';
-        ctx.shadowBlur = 0;
-      }
-      ctx.fillRect(-car.width/2 + 1, car.length/2, 2, 1);
-      ctx.fillRect(car.width/2 - 3, car.length/2, 2, 1);
+      // Taillights (Red Glow) - Brighter if Stopped
+      ctx.fillStyle = car.state === 'STOPPED' ? '#EF4444' : '#7F1D1D';
+      ctx.shadowColor = '#EF4444';
+      ctx.shadowBlur = car.state === 'STOPPED' ? 10 : 0;
+      
+      ctx.fillRect(-car.width/2 + 1, car.length/2 - 1, 2, 2);
+      ctx.fillRect(car.width/2 - 3, car.length/2 - 1, 2, 2);
+
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
   };
 
-  // Animation Loop Effect
+  const drawIntersections = (ctx: CanvasRenderingContext2D, ints: Intersection[]) => {
+    ints.forEach(i => {
+      const cx = (i.x + 0.5) * BLOCK_SIZE;
+      const cy = (i.y + 0.5) * BLOCK_SIZE;
+      const rw = ROAD_WIDTH;
+
+      // Stop Lines
+      ctx.fillStyle = '#334155';
+      const stopLineOffset = rw * 0.7;
+      const stopLineW = rw;
+      const stopLineH = 4;
+      ctx.fillRect(cx - stopLineW/2, cy - stopLineOffset, stopLineW, stopLineH); // N
+      ctx.fillRect(cx - stopLineW/2, cy + stopLineOffset - stopLineH, stopLineW, stopLineH); // S
+      ctx.fillRect(cx - stopLineOffset, cy - stopLineW/2, stopLineH, stopLineW); // W
+      ctx.fillRect(cx + stopLineOffset - stopLineH, cy - stopLineW/2, stopLineH, stopLineW); // E
+
+      // Traffic Light Orbs
+      const drawLight = (lx: number, ly: number, state: LightState) => {
+        // Casing
+        ctx.fillStyle = '#0F172A';
+        ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI * 2); ctx.fill();
+        
+        // Light
+        ctx.beginPath(); ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+        let color = '#333';
+        if (state === LightState.GREEN) color = '#10B981';
+        if (state === LightState.YELLOW) color = '#F59E0B';
+        if (state === LightState.RED) color = '#EF4444';
+        
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      };
+
+      const lightOffset = rw/2 + 10;
+      drawLight(cx - lightOffset, cy - lightOffset, i.lightState.ns); // Top Left (Controls Southbound) - LHT logic is subtle here
+      drawLight(cx + lightOffset, cy + lightOffset, i.lightState.ns);
+      drawLight(cx + lightOffset, cy - lightOffset, i.lightState.ew);
+      drawLight(cx - lightOffset, cy + lightOffset, i.lightState.ew);
+
+      // Label Overlay
+      ctx.fillStyle = '#E2E8F0';
+      ctx.font = '600 11px Rajdhani';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'black';
+      ctx.shadowBlur = 4;
+      ctx.fillText(i.label, cx, cy);
+      ctx.shadowBlur = 0;
+    });
+  };
+
+  const draw = (ctx: CanvasRenderingContext2D, currentIntersections: Intersection[], currentCars: Car[]) => {
+    const { width, height } = getCanvasSize();
+    ctx.clearRect(0, 0, width, height);
+
+    drawCityBackground(ctx, width, height);
+    drawRoads(ctx, width, height);
+    drawTrafficFlowOverlay(ctx, width, height, currentCars, frameCountRef.current);
+    drawIntersections(ctx, currentIntersections);
+    drawCars(ctx, currentCars);
+  };
+
+  // Main Physics & Render Loop
   useEffect(() => {
     if (!isRunning) return;
     
@@ -472,7 +483,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       // Update Cars
       let nextCars = [...currentCars];
       
-      if (frameCountRef.current % 25 === 0 && nextCars.length < 120) { 
+      if (frameCountRef.current % 25 === 0 && nextCars.length < 140) { 
         const newCar = spawnCar(nextCars);
         if (newCar) nextCars.push(newCar);
       }
@@ -513,12 +524,15 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
            if (distToInt < stopLineOffset) shouldStop = false;
         }
 
-        const lookAhead = car.length * 2.0 + speed * 5; 
+        const lookAhead = car.length * 2.0 + speed * 10; 
         const carAhead = nextCars.find(c => {
            if (c.id === car.id) return false;
+           // Improved Lane Check
            const sameLane = (c.dir === dir) && 
              (dir === 'N' || dir === 'S' ? Math.abs(c.x - x) < 8 : Math.abs(c.y - y) < 8);
+           
            if (!sameLane) return false;
+           
            if (dir === 'N' && c.y < y && y - c.y < lookAhead) return true;
            if (dir === 'S' && c.y > y && c.y - y < lookAhead) return true;
            if (dir === 'W' && c.x < x && x - c.x < lookAhead) return true;
@@ -550,19 +564,17 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         return c.x > -100 && c.x < width + 100 && c.y > -100 && c.y < height + 100;
       });
 
-      // UPDATE LOCAL PHYSICS STATE
+      // Update Physics State
       physicsState.current.intersections = nextIntersections;
       physicsState.current.cars = nextCars;
 
-      // Draw immediately with new data
+      // Draw
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
-        if (ctx) {
-           draw(ctx, nextIntersections, nextCars);
-        }
+        if (ctx) draw(ctx, nextIntersections, nextCars);
       }
 
-      // Sync with React State (UI)
+      // Sync React State periodically
       setIntersections(nextIntersections);
       setCars(nextCars);
       
@@ -583,7 +595,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     };
   }, [isRunning, onUpdateStats, setCars, setIntersections]); 
 
-  // Click Handler
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -601,9 +612,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
              y >= cy - hitRadius && y <= cy + hitRadius;
     });
 
-    if (clicked) {
-      onIntersectionSelect(clicked.id);
-    }
+    if (clicked) onIntersectionSelect(clicked.id);
   };
 
   const { width, height } = getCanvasSize();
@@ -618,7 +627,6 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       style={{
         maxWidth: '100%',
         maxHeight: '100%',
-        boxShadow: '0 0 50px rgba(0,0,0,0.5)'
       }}
     />
   );
