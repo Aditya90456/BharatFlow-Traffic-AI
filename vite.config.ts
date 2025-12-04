@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       // robustly define the API key so it is replaced at build time
-      // This fixes "ReferenceError: process is not defined" in the browser
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // Check both loaded env object AND system process.env to ensure key is found
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || '')
     },
     build: {
       outDir: 'dist',

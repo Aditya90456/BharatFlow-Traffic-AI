@@ -1,7 +1,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Intersection, TrafficStats, GeminiAnalysis } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Ensure TypeScript recognizes process.env
+declare const process: {
+  env: {
+    API_KEY: string;
+  };
+};
+
+// Lazy initialization singleton
+let ai: GoogleGenAI | null = null;
 
 const SYSTEM_INSTRUCTION = `
 You are BharatFlow, India's advanced AI Traffic Control System. 
@@ -11,6 +19,17 @@ Traffic moves on the LEFT (Left-Hand Traffic).
 Output concise, authoritative traffic directives.
 Use Indian English terminology (e.g., "Junction", "Signal", "Gridlock", "Lakhs" if relevant).
 `;
+
+const getAIClient = () => {
+  if (!ai) {
+    const key = process.env.API_KEY;
+    if (!key) {
+      throw new Error("Gemini API Key is missing from environment variables.");
+    }
+    ai = new GoogleGenAI({ apiKey: key });
+  }
+  return ai;
+};
 
 export const analyzeTraffic = async (
   intersections: Intersection[],
@@ -44,7 +63,10 @@ export const analyzeTraffic = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    // Initialize client here to catch errors safely
+    const client = getAIClient();
+
+    const response = await client.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
