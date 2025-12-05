@@ -561,7 +561,9 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         totalSpeed += speed;
         return { ...car, x, y, speed, state };
       }).filter(c => {
-        return c.x > -100 && c.x < width + 100 && c.y > -100 && c.y < height + 100;
+        // DESPAWN LOGIC: Remove cars that are significantly off-screen
+        const margin = 100;
+        return c.x > -margin && c.x < width + margin && c.y > -margin && c.y < height + margin;
       });
 
       // Update Physics State

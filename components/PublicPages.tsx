@@ -52,13 +52,7 @@ const PublicLayout: React.FC<PublicLayoutProps> = ({ children, title, activePage
 
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => onNavigate('SIGNUP')}
-              className="text-xs font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-wider hidden sm:block"
-            >
-              Register
-            </button>
-            <button 
-              onClick={() => onNavigate('LOGIN')}
+              onClick={() => onNavigate('DASHBOARD')}
               className="flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-accent/50 transition-all text-sm font-bold"
             >
               <span>Access Grid</span>
@@ -145,7 +139,7 @@ export const LiveMapPage: React.FC<{onNavigate: (p: string) => void}> = ({ onNav
              <div className="text-2xl font-tech font-bold text-white">32,450</div>
              <div className="text-xs text-gray-500 uppercase tracking-wider">Active Sensors</div>
           </div>
-          <button onClick={() => onNavigate('LOGIN')} className="px-6 py-2 bg-accent text-black font-bold rounded hover:bg-white transition-colors">
+          <button onClick={() => onNavigate('DASHBOARD')} className="px-6 py-2 bg-accent text-black font-bold rounded hover:bg-white transition-colors">
              View Live Telemetry
           </button>
        </div>
@@ -229,8 +223,8 @@ export const ApiDocsPage: React.FC<{onNavigate: (p: string) => void}> = ({ onNav
              <p className="text-xs text-gray-400 mt-2 mb-4">
                 Access to the BharatFlow API is restricted to authorized municipal partners and research institutions.
              </p>
-             <button onClick={() => onNavigate('SIGNUP')} className="w-full py-2 bg-accent text-black font-bold text-sm rounded hover:bg-white transition-colors">
-                Apply for Key
+             <button onClick={() => onNavigate('DASHBOARD')} className="w-full py-2 bg-accent text-black font-bold text-sm rounded hover:bg-white transition-colors">
+                Launch Console
              </button>
           </div>
        </div>

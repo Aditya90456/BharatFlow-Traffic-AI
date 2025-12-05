@@ -2,7 +2,7 @@
 import React from 'react';
 import { SimulationCanvas } from './SimulationCanvas';
 import { TrafficStats, Intersection, Car } from '../types';
-import { PlayIcon, PauseIcon, ArrowsPointingOutIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 
 interface SimulationSectionProps {
   currentCity: string;
@@ -15,6 +15,8 @@ interface SimulationSectionProps {
   onUpdateStats: (total: number, speed: number, queues: Record<string, number>) => void;
   onIntersectionSelect: (id: string) => void;
   stats: TrafficStats;
+  viewMode: 'GRID' | 'SATELLITE';
+  setViewMode: (mode: 'GRID' | 'SATELLITE') => void;
 }
 
 export const SimulationSection: React.FC<SimulationSectionProps> = ({
@@ -27,7 +29,9 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
   setCars,
   onUpdateStats,
   onIntersectionSelect,
-  stats
+  stats,
+  viewMode,
+  setViewMode
 }) => {
   return (
     <main className="flex-1 relative flex flex-col min-w-0 bg-surfaceHighlight/30 rounded-2xl border border-white/5 p-1.5 backdrop-blur-sm overflow-hidden">
@@ -58,14 +62,24 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                         {isRunning ? 'Live' : 'Paused'}
                      </button>
                      <div className="w-px h-4 bg-white/10 mx-1"></div>
-                     <button className="text-gray-500 hover:text-white transition-colors">
+                     <button
+                        onClick={() => setViewMode(viewMode === 'GRID' ? 'SATELLITE' : 'GRID')}
+                        className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/10"
+                        title={`Switch to ${viewMode === 'GRID' ? 'Satellite' : 'Grid'} View`}
+                     >
+                        {viewMode === 'GRID' ? <GlobeAsiaAustraliaIcon className="w-4 h-4" /> : <Squares2X2Icon className="w-4 h-4" />}
+                     </button>
+                     <button className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/10">
                         <ArrowsPointingOutIcon className="w-4 h-4" />
                      </button>
                 </div>
             </div>
 
             {/* Canvas Area */}
-            <div className="flex-1 relative flex items-center justify-center bg-[#08090d] shadow-inner overflow-hidden group">
+            <div className={`
+                flex-1 relative flex items-center justify-center bg-[#08090d] shadow-inner overflow-hidden group
+                ${viewMode === 'SATELLITE' ? 'satellite-view-container' : ''}
+            `}>
                    
                    {/* HUD Elements */}
                    <div className="absolute top-4 left-4 text-[10px] font-mono text-accent/50 pointer-events-none z-20">
@@ -86,16 +100,18 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                         style={{backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px'}}>
                    </div>
 
-                   <SimulationCanvas 
-                      intersections={intersections}
-                      setIntersections={setIntersections}
-                      cars={cars}
-                      setCars={setCars}
-                      onUpdateStats={onUpdateStats}
-                      isRunning={isRunning}
-                      onIntersectionSelect={onIntersectionSelect}
-                      scenarioKey={currentCity}
-                   />
+                   <div className={`relative transition-all duration-700 ease-in-out ${viewMode === 'SATELLITE' ? 'satellite-view-canvas' : 'grid-view-canvas'}`}>
+                      <SimulationCanvas 
+                          intersections={intersections}
+                          setIntersections={setIntersections}
+                          cars={cars}
+                          setCars={setCars}
+                          onUpdateStats={onUpdateStats}
+                          isRunning={isRunning}
+                          onIntersectionSelect={onIntersectionSelect}
+                          scenarioKey={currentCity}
+                      />
+                   </div>
                    
                    {/* Overlay Stats - Floating Glass Cards */}
                    <div className="absolute bottom-6 left-6 pointer-events-none flex flex-col gap-2 z-20">

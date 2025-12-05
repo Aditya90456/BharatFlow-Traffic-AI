@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { SimulationSection } from './components/SimulationSection';
 import { StatsCard } from './components/StatsCard';
-import { LoginPage } from './components/LoginPage';
 import { LandingPage } from './components/LandingPage';
-import { SignUpPage } from './components/SignUpPage';
 import { FeaturesPage, LiveMapPage, PublicDataPage, ApiDocsPage } from './components/PublicPages';
 import { analyzeTraffic } from './services/geminiService';
 import { Intersection, Car, LightState, TrafficStats, GeminiAnalysis } from './types';
@@ -18,7 +16,8 @@ import {
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 type TabId = 'dash' | 'map' | 'analytics';
-type ViewState = 'LANDING' | 'LOGIN' | 'SIGNUP' | 'DASHBOARD' | 'FEATURES' | 'PUBLIC_MAP' | 'PUBLIC_DATA' | 'API_DOCS';
+type ViewState = 'LANDING' | 'DASHBOARD' | 'FEATURES' | 'PUBLIC_MAP' | 'PUBLIC_DATA' | 'API_DOCS';
+type ViewMode = 'GRID' | 'SATELLITE';
 
 // Boot Sequence Component
 const SystemBoot: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
@@ -44,7 +43,7 @@ const SystemBoot: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
         }
       }, delay);
     });
-  }, []);
+  }, [onComplete]);
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex items-center justify-center font-mono text-green-500 p-8">
@@ -89,6 +88,7 @@ const generateIntersections = (cityNames: string[]): Intersection[] => {
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>('LANDING');
   const [isBooting, setIsBooting] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('GRID');
 
   const [currentCity, setCurrentCity] = useState<string>("Bangalore");
   const [isRunning, setIsRunning] = useState(true);
@@ -119,6 +119,35 @@ const App: React.FC = () => {
     setLogs(prev => [ `> ${new Date().toLocaleTimeString('en-US', {hour12:false})} ${msg}`, ...prev].slice(0, 10));
   };
 
+  const initializeDashboard = (city: string) => {
+    setCurrentCity(city);
+    setIntersections(generateIntersections(CITY_CONFIGS[city]));
+    setCars([]);
+    setStats({
+      totalCars: 0,
+      avgSpeed: 0,
+      congestionLevel: 0,
+      carbonEmission: 0,
+    });
+    setQueueMap({});
+    setSelectedIntersectionId(null);
+    setIsAnalyzing(false);
+    setAiInsights(null);
+    setLogs([
+      `> ${new Date().toLocaleTimeString('en-US', {hour12: false})} INITIALIZING ${city.toUpperCase()} GRID...`,
+      "BharatFlow OS v3.0 connected.",
+      "Satellite feed synced.",
+      "IoT Sensors: 98% ONLINE",
+    ]);
+    setHistory([]);
+    setActiveTab('dash');
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearch(false);
+    setIsRunning(true);
+    setViewMode('GRID');
+  };
+
   const searchableItems = useMemo(() => {
     const items: {type: 'CITY'|'JUNCTION', label: string, id?: string}[] = [];
     Object.keys(CITY_CONFIGS).forEach(city => {
@@ -144,12 +173,7 @@ const App: React.FC = () => {
 
   const handleSearchSelect = (result: {type: 'CITY'|'JUNCTION', label: string, id?: string}) => {
     if (result.type === 'CITY') {
-      setCurrentCity(result.label);
-      setIntersections(generateIntersections(CITY_CONFIGS[result.label]));
-      setCars([]); 
-      setSelectedIntersectionId(null);
-      addLog(`System migrated to ${result.label} Grid.`);
-      setLogs(prev => [`> Initializing ${result.label} topology...`, ...prev]);
+      initializeDashboard(result.label);
     } else if (result.type === 'JUNCTION' && result.id) {
       setSelectedIntersectionId(result.id);
       addLog(`Focusing optical sensors on ${result.label}`);
@@ -221,51 +245,39 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleLoginSuccess = () => {
-    setIsBooting(true);
-    setViewState('DASHBOARD');
-  };
-
   const handleLogout = () => {
+    setIsRunning(false);
     setViewState('LANDING');
     setLogs([]); 
   };
 
   const handleNavigate = (page: string) => {
-    setViewState(page as ViewState);
+    if (page === 'DASHBOARD') {
+      setIsBooting(true);
+    } else {
+      setIsBooting(false);
+      setViewState(page as ViewState);
+    }
   };
 
+
   // ROUTING LOGIC
+  if (isBooting) {
+    return <SystemBoot onComplete={() => {
+        initializeDashboard(currentCity);
+        setIsBooting(false);
+        setViewState('DASHBOARD');
+    }} />;
+  }
+  
   if (viewState === 'LANDING') {
     return <LandingPage onNavigate={handleNavigate} />;
-  }
-
-  if (viewState === 'LOGIN') {
-    return (
-      <LoginPage 
-        onLogin={handleLoginSuccess} 
-        onNavigateToSignUp={() => setViewState('SIGNUP')}
-      />
-    );
-  }
-
-  if (viewState === 'SIGNUP') {
-    return (
-      <SignUpPage 
-        onSignUp={handleLoginSuccess}
-        onNavigateToLogin={() => setViewState('LOGIN')}
-      />
-    );
   }
 
   if (viewState === 'FEATURES') return <FeaturesPage onNavigate={handleNavigate} />;
   if (viewState === 'PUBLIC_MAP') return <LiveMapPage onNavigate={handleNavigate} />;
   if (viewState === 'PUBLIC_DATA') return <PublicDataPage onNavigate={handleNavigate} />;
   if (viewState === 'API_DOCS') return <ApiDocsPage onNavigate={handleNavigate} />;
-
-  if (isBooting) {
-    return <SystemBoot onComplete={() => setIsBooting(false)} />;
-  }
 
   // DASHBOARD RENDER
   const selectedIntersection = intersections.find(i => i.id === selectedIntersectionId);
@@ -403,6 +415,8 @@ const App: React.FC = () => {
              onUpdateStats={handleUpdateStats}
              onIntersectionSelect={setSelectedIntersectionId}
              stats={stats}
+             viewMode={viewMode}
+             setViewMode={setViewMode}
           />
         ) : (
           <div className="flex-1 glass rounded-2xl flex items-center justify-center border border-white/5 relative overflow-hidden">

@@ -49,6 +49,7 @@
               'scan-vertical': 'scan-vertical 3s linear infinite',
               'boot-text': 'boot-text 0.5s steps(30, end)',
               'blink': 'blink 1s step-end infinite',
+              'drift': 'drift 90s linear infinite',
             },
             keyframes: {
               'pulse-glow': {
@@ -66,6 +67,10 @@
               'blink': {
                 '0%, 100%': { opacity: '1' },
                 '50%': { opacity: '0' }
+              },
+              'drift': {
+                '0%': { 'background-position': '0% 0%' },
+                '100%': { 'background-position': '200% 200%' },
               }
             }
           }
@@ -144,6 +149,47 @@
         pointer-events: none;
         z-index: 50;
         opacity: 0.1;
+      }
+
+      /* Added for Satellite View */
+      .satellite-view-container {
+        perspective: 1500px;
+      }
+
+      .satellite-view-container::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: url('https://i.imgur.com/vH9aG7M.png');
+        background-size: 200% 200%;
+        animation: drift 90s linear infinite;
+        opacity: 0.1;
+        pointer-events: none;
+        z-index: 24;
+      }
+
+      .satellite-view-container::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(3,3,5,1) 80%);
+        pointer-events: none;
+        z-index: 25;
+        opacity: 0.8;
+      }
+
+      .satellite-view-canvas {
+        transform: rotateX(50deg) scale(0.8);
+        box-shadow: 0 40px 80px -20px rgba(0,0,0,0.7);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .grid-view-canvas {
+        transform: rotateX(0deg) scale(1);
+        box-shadow: none;
+        border-radius: 0px;
+        overflow: visible;
       }
     </style>
   <script type="importmap">

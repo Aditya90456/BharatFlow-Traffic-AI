@@ -1,5 +1,7 @@
 {
   "name": "BharatFlow AI",
   "description": "Enterprise Traffic Management Dashboard",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }
