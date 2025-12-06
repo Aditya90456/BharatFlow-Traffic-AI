@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GlobeAltIcon, ArrowRightIcon, CpuChipIcon, SparklesIcon, ServerStackIcon, CameraIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { GlobeAltIcon, ArrowRightIcon, CpuChipIcon, SparklesIcon, ServerStackIcon, CameraIcon, ShieldCheckIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
 
 interface LandingPageProps {
   onNavigate: (page: string) => void;
@@ -22,6 +22,8 @@ const FeatureCard: React.FC<{ icon: React.FC<any>, title: string, description: s
 
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+  const [isQuietMode, setIsQuietMode] = useState(false);
+
   return (
     <div className="bg-background text-white font-sans overflow-x-hidden selection:bg-accent selection:text-black">
       
@@ -30,12 +32,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="absolute inset-0 bg-mesh opacity-40"></div>
         <div className="absolute top-0 left-0 w-1/2 h-full bg-gradient-to-r from-background via-background/50 to-transparent"></div>
         <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-background via-background/50 to-transparent"></div>
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-saffron/10 rounded-full blur-[100px] animate-pulse delay-1000"></div>
+        <div className={`absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] ${!isQuietMode ? 'animate-pulse' : ''}`}></div>
+        <div className={`absolute bottom-1/4 right-1/4 w-96 h-96 bg-saffron/10 rounded-full blur-[100px] ${!isQuietMode ? 'animate-pulse' : ''}`} style={{animationDelay: '1s'}}></div>
       </div>
       
       {/* --- HERO SECTION --- */}
       <main className="relative min-h-screen flex items-center justify-center p-6 z-10 overflow-hidden">
+        
+        <button 
+          onClick={() => setIsQuietMode(!isQuietMode)}
+          className="absolute top-6 right-6 z-20 p-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+          title={isQuietMode ? "Enable Animations" : "Disable Animations (Quiet Mode)"}
+        >
+          {isQuietMode ? <SpeakerXMarkIcon className="w-5 h-5 text-gray-400"/> : <SpeakerWaveIcon className="w-5 h-5 text-accent" />}
+        </button>
+
         <div className="grid lg:grid-cols-2 gap-16 items-center max-w-7xl mx-auto">
           <div className="space-y-8 animate-in fade-in slide-in-from-left-8 duration-1000 fill-mode-forwards z-10">
             <div className="flex items-center gap-4">
@@ -87,10 +98,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                         <stop offset="100%" style={{stopColor: 'rgba(6,182,212,0)', stopOpacity: 1}} />
                     </linearGradient>
                 </defs>
-                <path d="M0 150 Q 250 50, 500 150 T 1000 150" stroke="url(#grad1)" strokeWidth="2" className="animate-[pulse_4s_ease-in-out_infinite]" />
-                <path d="M0 350 Q 250 450, 500 350 T 1000 350" stroke="url(#grad1)" strokeWidth="2" className="animate-[pulse_4s_ease-in-out_infinite_1s]" />
-                <path d="M150 0 Q 50 250, 150 500 T 150 1000" stroke="url(#grad2)" strokeWidth="2" className="animate-[pulse_3s_ease-in-out_infinite]" />
-                <path d="M350 0 Q 450 250, 350 500 T 350 1000" stroke="url(#grad2)" strokeWidth="2" className="animate-[pulse_3s_ease-in-out_infinite_0.5s]" />
+                <path d="M0 150 Q 250 50, 500 150 T 1000 150" stroke="url(#grad1)" strokeWidth="2" className={!isQuietMode ? 'animate-[pulse_4s_ease-in-out_infinite]' : ''} />
+                <path d="M0 350 Q 250 450, 500 350 T 1000 350" stroke="url(#grad1)" strokeWidth="2" className={!isQuietMode ? 'animate-[pulse_4s_ease-in-out_infinite_1s]' : ''} />
+                <path d="M150 0 Q 50 250, 150 500 T 150 1000" stroke="url(#grad2)" strokeWidth="2" className={!isQuietMode ? 'animate-[pulse_3s_ease-in-out_infinite]' : ''} />
+                <path d="M350 0 Q 450 250, 350 500 T 350 1000" stroke="url(#grad2)" strokeWidth="2" className={!isQuietMode ? 'animate-[pulse_3s_ease-in-out_infinite_0.5s]' : ''} />
             </svg>
           </div>
         </div>

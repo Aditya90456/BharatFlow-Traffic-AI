@@ -1,11 +1,12 @@
 import React from 'react';
-import { Car, Intersection } from '../types';
-import { TruckIcon, Cog6ToothIcon, ArrowsRightLeftIcon, IdentificationIcon, MapPinIcon } from '@heroicons/react/24/outline';
-import { MAX_SPEED } from '../constants';
+import { Car, Intersection, Road } from '../types';
+import { TruckIcon, Cog6ToothIcon, ArrowsRightLeftIcon, IdentificationIcon, MapPinIcon, MapIcon } from '@heroicons/react/24/outline';
+import { MAX_SPEED, BLOCK_SIZE } from '../constants';
 
 interface VehicleDetailsProps {
   car: Car;
   intersections: Intersection[];
+  roads: Road[];
 }
 
 const DetailItem: React.FC<{ icon: React.FC<any>, label: string, value: string | number, colorClass?: string }> = ({ icon: Icon, label, value, colorClass = "text-accent" }) => (
@@ -18,7 +19,7 @@ const DetailItem: React.FC<{ icon: React.FC<any>, label: string, value: string |
   </div>
 );
 
-export const VehicleDetails: React.FC<VehicleDetailsProps> = ({ car, intersections }) => {
+export const VehicleDetails: React.FC<VehicleDetailsProps> = ({ car, intersections, roads }) => {
   const getMissionText = () => {
     if (car.type !== 'POLICE') {
       return 'N/A';
@@ -45,6 +46,31 @@ export const VehicleDetails: React.FC<VehicleDetailsProps> = ({ car, intersectio
     const target = intersections.find(i => i.id === car.targetIntersectionId);
     return target ? target.label : 'Leaving Grid';
   };
+  
+  const getCarRoadName = (): string => {
+      const { x, y, dir } = car;
+      const gridX = Math.floor(x / BLOCK_SIZE);
+      const gridY = Math.floor(y / BLOCK_SIZE);
+
+      let int1Id: string | null = null;
+      let int2Id: string | null = null;
+      
+      if (dir === 'N' || dir === 'S') { // Vertical movement
+          int1Id = `INT-${gridX}-${gridY}`;
+          int2Id = `INT-${gridX}-${gridY + (dir === 'S' ? 1 : -1)}`;
+      } else { // Horizontal movement
+          int1Id = `INT-${gridX}-${gridY}`;
+          int2Id = `INT-${gridX + (dir === 'E' ? 1 : -1)}-${gridY}`;
+      }
+      
+      if (int1Id && int2Id) {
+          const segmentId = [int1Id, int2Id].sort().join('_');
+          const road = roads.find(r => r.id === segmentId);
+          if (road) return road.name;
+      }
+      
+      return 'At Intersection';
+  };
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
@@ -67,6 +93,7 @@ export const VehicleDetails: React.FC<VehicleDetailsProps> = ({ car, intersectio
       <div className="space-y-3">
         <DetailItem icon={Cog6ToothIcon} label="State" value={car.isBrokenDown ? 'BROKEN DOWN' : car.state} colorClass={car.isBrokenDown ? 'text-orange-400' : car.state === 'STOPPED' ? 'text-red-400' : 'text-green-400'}/>
         <DetailItem icon={ArrowsRightLeftIcon} label="Speed" value={`${(car.speed / MAX_SPEED * 60).toFixed(0)} km/h`} colorClass="text-cyan-400" />
+        <DetailItem icon={MapIcon} label="Current Road" value={getCarRoadName()} colorClass="text-saffron" />
         <DetailItem icon={MapPinIcon} label="Target Intersection" value={getTargetText()} colorClass="text-purple-400" />
         {car.type === 'POLICE' && (
            <DetailItem icon={IdentificationIcon} label="Mission" value={getMissionText()} colorClass="text-blue-300" />

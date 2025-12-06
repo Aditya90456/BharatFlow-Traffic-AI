@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useLayoutEffect } from 'react';
 import { GRID_SIZE, BLOCK_SIZE, ROAD_WIDTH, CAR_SIZE, YELLOW_DURATION, MAX_SPEED, ACCELERATION, DECELERATION, getCanvasSize } from '../constants';
-import { Intersection, Car, LightState, VehicleType, Incident } from '../types';
+import { Intersection, Car, LightState, VehicleType, Incident, Road } from '../types';
 
 interface SimulationCanvasProps {
   intersections: Intersection[];
@@ -19,6 +19,7 @@ interface SimulationCanvasProps {
   onIncidentSelect: (id: string) => void;
   selectedIncidentId: string | null;
   closedRoads: Set<string>;
+  roads: Road[];
 }
 
 const turnOptions = ['straight', 'left', 'right'] as const;
@@ -43,6 +44,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
   onIncidentSelect,
   selectedIncidentId,
   closedRoads,
+  roads,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameCountRef = useRef(0);
@@ -58,6 +60,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     incidents: incidents,
     selectedIncidentId: selectedIncidentId,
     closedRoads: closedRoads,
+    roads: roads,
   });
 
   useLayoutEffect(() => {
@@ -66,13 +69,15 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
        physicsState.current.cars = cars;
        physicsState.current.currentScenarioKey = scenarioKey;
     }
+    physicsState.current.intersections = intersections;
     physicsState.current.cars = cars;
     physicsState.current.selectedCarId = selectedCarId;
     physicsState.current.recentlyUpdatedJunctions = recentlyUpdatedJunctions;
     physicsState.current.incidents = incidents;
     physicsState.current.selectedIncidentId = selectedIncidentId;
     physicsState.current.closedRoads = closedRoads;
-  }, [intersections, cars, scenarioKey, selectedCarId, recentlyUpdatedJunctions, incidents, selectedIncidentId, closedRoads]);
+    physicsState.current.roads = roads;
+  }, [intersections, cars, scenarioKey, selectedCarId, recentlyUpdatedJunctions, incidents, selectedIncidentId, closedRoads, roads]);
 
   const getLaneCenter = (gridIdx: number, isVertical: boolean, isForward: boolean) => {
     const roadCenter = (gridIdx + 0.5) * BLOCK_SIZE;
@@ -287,6 +292,36 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
             ctx.restore();
         }
     }
+  };
+  
+  const drawRoadNames = (ctx: CanvasRenderingContext2D, roadsToDraw: Road[]) => {
+      ctx.font = 'bold 12px "Rajdhani"';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      roadsToDraw.forEach(road => {
+          const int1 = physicsState.current.intersections.find(i => i.id === road.intersection1Id);
+          const int2 = physicsState.current.intersections.find(i => i.id === road.intersection2Id);
+          if (!int1 || !int2) return;
+          
+          const x1 = (int1.x + 0.5) * BLOCK_SIZE;
+          const y1 = (int1.y + 0.5) * BLOCK_SIZE;
+          const x2 = (int2.x + 0.5) * BLOCK_SIZE;
+          const y2 = (int2.y + 0.5) * BLOCK_SIZE;
+          
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          const isVertical = int1.x === int2.x;
+
+          ctx.save();
+          ctx.translate(midX, midY);
+          if (isVertical) {
+              ctx.rotate(Math.PI / 2);
+          }
+          ctx.fillText(road.name.toUpperCase(), 0, 0);
+          ctx.restore();
+      });
   };
 
   const drawCars = (ctx: CanvasRenderingContext2D, carsToDraw: Car[]) => {
@@ -739,6 +774,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
 
       drawCityBackground(ctx, width, height);
       drawRoads(ctx, width, height, newCars, physicsState.current.closedRoads);
+      drawRoadNames(ctx, physicsState.current.roads);
       drawIntersections(ctx, physicsState.current.intersections);
       drawCars(ctx, newCars);
       drawIncidentMarkers(ctx, physicsState.current.incidents);

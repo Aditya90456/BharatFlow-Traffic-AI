@@ -40,6 +40,13 @@ export interface Car {
   isBrokenDown?: boolean;
 }
 
+export interface Road {
+    id: string; // e.g., "INT-0-0_INT-1-0"
+    name: string; // e.g., "MG Road"
+    intersection1Id: string;
+    intersection2Id: string;
+}
+
 export interface TrafficStats {
   totalCars: number;
   avgSpeed: number;
@@ -92,4 +99,10 @@ export interface RealWorldIntel {
   timestamp: number;
   intel: string;
   sources: GroundingChunk[];
+}
+
+export interface SearchResult {
+  type: 'CITY' | 'INTERSECTION' | 'ROAD';
+  id: string;
+  name: string;
 }

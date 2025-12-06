@@ -154,6 +154,7 @@ export const analyzeIncident = async (
 export const getRealWorldIntel = async (
   query: string,
   city: string,
+  intersectionLabels: string[],
   location?: { latitude: number; longitude: number }
 ): Promise<RealWorldIntel> => {
   let locationContext = '';
@@ -162,10 +163,24 @@ export const getRealWorldIntel = async (
   }
 
   const prompt = `
-    Query regarding traffic conditions in ${city}, India: "${query}".
+    You are an AI assistant for a traffic control center.
+    The user's query is about traffic conditions in ${city}, India: "${query}".
     ${locationContext}
-    Provide a concise, one-paragraph summary based on real-time web search results.
-    Focus on events, incidents, or conditions that would directly impact city traffic management.
+    The known intersections in this city sector are: ${intersectionLabels.join(', ')}.
+
+    Your task has two parts:
+    1.  Provide a concise, one-paragraph summary for the operator based on real-time web search results. Focus on events, incidents, or conditions that would directly impact city traffic management.
+    2.  After your summary, if and only if your search finds a specific, verifiable incident (like a major accident or significant roadwork) that is clearly located at one of the known intersections listed above, you MUST add a special data line at the very end of your response. This line must be on a new line and follow this exact format:
+        INCIDENT::[INTERSECTION_LABEL]::[TYPE]::[DESCRIPTION]
+        - [INTERSECTION_LABEL] must be an exact match from the provided list.
+        - [TYPE] must be either ACCIDENT or CONSTRUCTION.
+        - [DESCRIPTION] must be a very short summary (e.g., "Multi-vehicle collision").
+        
+    Example of a full response with an incident:
+    Several roads in the city center are experiencing delays due to a planned marathon. Traffic is being rerouted around the main stadium, and public transport is advised. Expect delays of up to 30 minutes in the central district until 2 PM.
+    INCIDENT::Hebbal Flyover::CONSTRUCTION::Lane closed for flyover maintenance.
+
+    If no specific incident is found at a known intersection, do not add the INCIDENT line.
   `;
 
   try {

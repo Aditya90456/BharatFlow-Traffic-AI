@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Intersection, GeminiAnalysis, Incident, GeminiIncidentAnalysis, RealWorldIntel, TrafficStats } from '../types';
-import { LightBulbIcon, ArrowsRightLeftIcon, ClockIcon, PlayIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon, ChatBubbleBottomCenterTextIcon, ShieldCheckIcon, SignalIcon, BoltIcon, CloudIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { Intersection, GeminiAnalysis, Incident, GeminiIncidentAnalysis, RealWorldIntel, TrafficStats, Road } from '../types';
+import { LightBulbIcon, ArrowsRightLeftIcon, ClockIcon, PlayIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon, ChatBubbleBottomCenterTextIcon, ShieldCheckIcon, SignalIcon, BoltIcon, CloudIcon, CpuChipIcon, MapIcon } from '@heroicons/react/24/outline';
 
 interface IntersectionDetailsProps {
     intersection: Intersection;
@@ -84,6 +84,8 @@ export const IntelFeed: React.FC<IntelFeedProps> = ({
             onGetIntel(query, useLocation);
         }
     };
+    
+    const incidentCreatedMessage = (realWorldIntel as any)?.incidentCreatedMessage;
     
     return (
         <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
@@ -169,6 +171,17 @@ export const IntelFeed: React.FC<IntelFeedProps> = ({
                     {isIntelLoading && <p className="m-auto text-gray-500 text-sm">Searching the web...</p>}
                     {realWorldIntel && (
                         <div className="text-sm space-y-3 animate-in fade-in">
+                             {incidentCreatedMessage && (
+                                <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
+                                    <div className="flex items-start gap-3">
+                                        <ExclamationTriangleIcon className="w-8 h-8 text-yellow-400 mt-1 flex-shrink-0" />
+                                        <div>
+                                            <h5 className="font-bold">AI ACTION INITIATED</h5>
+                                            <p className="text-xs">{incidentCreatedMessage}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         <p className="text-gray-300 whitespace-pre-wrap">{realWorldIntel.intel}</p>
                         {realWorldIntel.sources.length > 0 && (
                             <div>
@@ -198,7 +211,11 @@ export const IncidentDetails: React.FC<{
     isAnalyzing: boolean;
     analysis: GeminiIncidentAnalysis | null;
     onAnalyze: (incident: Incident) => void;
-}> = ({ incident, isAnalyzing, analysis, onAnalyze }) => {
+    roads: Road[];
+}> = ({ incident, isAnalyzing, analysis, onAnalyze, roads }) => {
+    
+    const affectedRoad = roads.find(r => r.id === incident.blocksSegmentId);
+
     return (
         <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
             <div className="flex items-center gap-4 pb-4 border-b border-white/10">
@@ -220,6 +237,16 @@ export const IncidentDetails: React.FC<{
                 <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">Description</p>
                 <p className="text-sm text-gray-200">{incident.description}</p>
             </div>
+
+            {affectedRoad && (
+                 <div className="p-3 rounded-lg bg-surface">
+                    <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">Affected Road</p>
+                    <div className="flex items-center gap-2">
+                        <MapIcon className="w-4 h-4 text-saffron"/>
+                        <p className="text-sm text-saffron font-mono">{affectedRoad.name}</p>
+                    </div>
+                </div>
+            )}
             
             <div className="p-3 rounded-lg bg-surface">
                 <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">Severity</p>

@@ -1,6 +1,7 @@
 
 
 
+
 export const GRID_SIZE = 2; // Mini grid (2x2)
 export const ROAD_WIDTH = 70; // Wider roads for detail
 export const BLOCK_SIZE = 240; // Larger blocks to show city details
@@ -94,4 +95,39 @@ export const CITY_CONFIGS: Record<string, string[]> = {
   "Rishikesh": [ "Laxman Jhula", "Ram Jhula", "Tapovan", "Triveni Ghat" ],
   "Udaipur": [ "Chetak Circle", "Delhi Gate", "Fateh Sagar", "Hiran Magri" ],
   "Srinagar": [ "Lal Chowk", "Dal Gate", "Residency Rd", "Boulevard Rd" ]
+};
+
+export const ROAD_NAMES: Record<string, { horizontal: string[], vertical: string[] }> = {
+    "Bangalore": {
+        horizontal: ["MG Road", "Brigade Road"],
+        vertical: ["St. Mark's Road", "Residency Road"],
+    },
+    "Mumbai": {
+        horizontal: ["Marine Drive", "Western Express Hwy"],
+        vertical: ["SV Road", "Linking Road"],
+    },
+    "Delhi": {
+        horizontal: ["Rajpath", "Connaught Circle"],
+        vertical: ["Janpath", "Ring Road"],
+    },
+    "Chennai": {
+        horizontal: ["Anna Salai", "Kamarajar Salai"],
+        vertical: ["GST Road", "OMR"],
+    },
+    "Hyderabad": {
+        horizontal: ["Necklace Road", "Minister Road"],
+        vertical: ["Banjara Hills Rd", "Jubilee Hills Rd"],
+    },
+    "Kolkata": {
+        horizontal: ["Park Street", "Shakespeare Sarani"],
+        vertical: ["Chittaranjan Avenue", "Strand Road"],
+    },
+    "Pune": {
+        horizontal: ["FC Road", "JM Road"],
+        vertical: ["Satara Road", "Karve Road"],
+    },
+     "Jaipur": {
+        horizontal: ["MI Road", "Tonk Road"],
+        vertical: ["Ajmer Road", "JLN Marg"],
+    },
 };

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SimulationCanvas } from './SimulationCanvas';
-import { TrafficStats, Intersection, Car, Incident } from '../types';
-import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { TrafficStats, Intersection, Car, Incident, Road, SearchResult } from '../types';
+import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon, CpuChipIcon, MagnifyingGlassIcon, MapIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
 
 interface SimulationSectionProps {
   currentCity: string;
@@ -25,6 +25,11 @@ interface SimulationSectionProps {
   onIncidentSelect: (id: string) => void;
   selectedIncidentId: string | null;
   closedRoads: Set<string>;
+  roads: Road[];
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  searchResults: SearchResult[];
+  onSearchResultSelect: (result: SearchResult) => void;
 }
 
 export const SimulationSection: React.FC<SimulationSectionProps> = ({
@@ -49,7 +54,26 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
   onIncidentSelect,
   selectedIncidentId,
   closedRoads,
+  roads,
+  searchQuery,
+  setSearchQuery,
+  searchResults,
+  onSearchResultSelect
 }) => {
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const groupedResults = searchResults.reduce((acc, result) => {
+    const type = result.type;
+    if (!acc[type]) {
+      acc[type] = [];
+    }
+    acc[type].push(result);
+    return acc;
+  }, {} as Record<SearchResult['type'], SearchResult[]>);
+
+  const resultOrder: SearchResult['type'][] = ['CITY', 'INTERSECTION', 'ROAD'];
+
+
   return (
     <main className={`
       absolute inset-0 flex flex-col min-w-0 bg-surfaceHighlight/30 rounded-2xl border p-1.5 backdrop-blur-sm overflow-hidden transition-all duration-300
@@ -60,8 +84,8 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
         <div className="flex-1 flex flex-col bg-background/50 rounded-xl border border-white/5 relative overflow-hidden">
             
             {/* Simulation Header / Toolbar */}
-            <div className="h-12 border-b border-white/5 bg-surface/50 flex items-center justify-between px-4">
-                <div className="flex items-center gap-3">
+            <div className="h-12 border-b border-white/5 bg-surface/50 flex items-center justify-between px-4 gap-4 z-30">
+                <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
                     <div>
                         <h2 className="text-sm font-tech font-bold text-white tracking-widest uppercase">
@@ -69,8 +93,53 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                         </h2>
                     </div>
                 </div>
+                
+                <div className="flex-1 flex justify-center min-w-0">
+                    <div className="relative w-full max-w-lg">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Search city, intersection, or road..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onFocus={() => setIsSearchFocused(true)}
+                            onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                            className="w-full bg-surface/80 border border-border rounded-lg pl-9 pr-4 py-1.5 text-sm placeholder-gray-500 focus:ring-1 focus:ring-accent focus:border-accent transition-all"
+                        />
+                         {isSearchFocused && searchResults.length > 0 && (
+                            <div className="absolute top-full mt-2 w-full bg-surface border border-border rounded-lg shadow-2xl z-50 overflow-hidden animate-in fade-in duration-200">
+                                <ul className="max-h-80 overflow-y-auto">
+                                    {resultOrder.map(type => {
+                                      if (!groupedResults[type]) return null;
+                                      return (
+                                        <li key={type}>
+                                          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-background/50 sticky top-0">
+                                            {type}s
+                                          </div>
+                                          <ul>
+                                            {groupedResults[type].map(result => (
+                                              <li
+                                                key={result.id}
+                                                className="flex items-center gap-3 px-3 py-2 hover:bg-accent/10 cursor-pointer text-sm"
+                                                onMouseDown={() => onSearchResultSelect(result)}
+                                              >
+                                                {result.type === 'CITY' && <GlobeAsiaAustraliaIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                                {result.type === 'INTERSECTION' && <Squares2X2Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                                {result.type === 'ROAD' && <ArrowsRightLeftIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                                                <span className="text-gray-200 truncate">{result.name}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </li>
+                                      )
+                                    })}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                      <button 
                        onClick={() => setIsRunning(!isRunning)} 
                        className={`
@@ -145,6 +214,7 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                           onIncidentSelect={onIncidentSelect}
                           selectedIncidentId={selectedIncidentId}
                           closedRoads={closedRoads}
+                          roads={roads}
                       />
                    </div>
                    

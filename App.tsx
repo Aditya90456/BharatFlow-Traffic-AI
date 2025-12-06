@@ -7,8 +7,8 @@ import { StatsCard } from './components/StatsCard';
 import { VehicleDetails } from './components/VehicleDetails';
 import { IntersectionDetails, IntelFeed, IncidentDetails, OverviewPanel } from './components/SidePanels';
 import { analyzeTraffic, analyzeIncident, getRealWorldIntel } from './services/geminiService';
-import { Incident, Intersection, Car, LightState, TrafficStats, GeminiAnalysis, GeminiIncidentAnalysis, RealWorldIntel } from './types';
-import { GRID_SIZE, INITIAL_GREEN_DURATION, CITY_CONFIGS, CITY_COORDINATES, BLOCK_SIZE } from './constants';
+import { Incident, Intersection, Car, LightState, TrafficStats, GeminiAnalysis, GeminiIncidentAnalysis, RealWorldIntel, Road, SearchResult } from './types';
+import { GRID_SIZE, INITIAL_GREEN_DURATION, CITY_CONFIGS, CITY_COORDINATES, BLOCK_SIZE, ROAD_NAMES } from './constants';
 import { 
   ArrowLeftOnRectangleIcon, ChartPieIcon, AdjustmentsHorizontalIcon, TruckIcon, SparklesIcon, VideoCameraIcon, GlobeAltIcon,
   ClockIcon, BoltIcon, CloudIcon, SignalIcon, ExclamationTriangleIcon
@@ -84,12 +84,50 @@ const generateIntersections = (cityNames: string[]): Intersection[] => {
   return arr;
 };
 
+const generateRoads = (city: string): Road[] => {
+    const roadNames = ROAD_NAMES[city] || ROAD_NAMES["Bangalore"];
+    const roads: Road[] = [];
+    let hIdx = 0;
+    let vIdx = 0;
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            // Horizontal road to the right
+            if (x < GRID_SIZE - 1) {
+                const id1 = `INT-${x}-${y}`;
+                const id2 = `INT-${x + 1}-${y}`;
+                roads.push({
+                    id: [id1, id2].sort().join('_'),
+                    name: roadNames.horizontal[hIdx % roadNames.horizontal.length],
+                    intersection1Id: id1,
+                    intersection2Id: id2,
+                });
+            }
+            // Vertical road downwards
+            if (y < GRID_SIZE - 1) {
+                const id1 = `INT-${x}-${y}`;
+                const id2 = `INT-${x}-${y + 1}`;
+                roads.push({
+                    id: [id1, id2].sort().join('_'),
+                    name: roadNames.vertical[vIdx % roadNames.vertical.length],
+                    intersection1Id: id1,
+                    intersection2Id: id2,
+                });
+            }
+        }
+        hIdx++;
+        vIdx++;
+    }
+    return roads;
+};
+
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>('LANDING');
   const [isBooting, setIsBooting] = useState(false);
   
   const [currentCity, setCurrentCity] = useState<string>("Bangalore");
   const [intersections, setIntersections] = useState<Intersection[]>(() => generateIntersections(CITY_CONFIGS["Bangalore"]));
+  const [roads, setRoads] = useState<Road[]>(() => generateRoads("Bangalore"));
   const [cars, setCars] = useState<Car[]>([]);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   
@@ -114,6 +152,9 @@ const App: React.FC = () => {
   const [isIntelLoading, setIsIntelLoading] = useState(false);
   const [realWorldIntel, setRealWorldIntel] = useState<RealWorldIntel | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+
   const analysisCooldownRef = useRef(false);
   const breakdownIntervalRef = useRef<number | null>(null);
   const carsRef = useRef(cars);
@@ -135,12 +176,18 @@ const App: React.FC = () => {
         let int1Id: string, int2Id: string;
         if (brokenCar.dir === 'E' || brokenCar.dir === 'W') {
             int1Id = `INT-${gridX}-${gridY}`;
-            int2Id = `INT-${gridX + 1}-${gridY}`;
-        } else {
+            int2Id = `INT-${gridX + (brokenCar.dir === 'E' ? 1 : -1)}-${gridY}`;
+        } else { // N or S
             int1Id = `INT-${gridX}-${gridY}`;
-            int2Id = `INT-${gridX}-${gridY + 1}`;
+            int2Id = `INT-${gridX}-${gridY + (brokenCar.dir === 'S' ? 1 : -1)}`;
         }
-        segmentId = [int1Id, int2Id].sort().join('_');
+        
+        const validInt1 = intersections.find(i => i.id === int1Id);
+        const validInt2 = intersections.find(i => i.id === int2Id);
+
+        if (validInt1 && validInt2) {
+          segmentId = [int1Id, int2Id].sort().join('_');
+        }
 
         const newIncident: Incident = {
             id: `brk-${brokenCar.id}`,
@@ -157,7 +204,7 @@ const App: React.FC = () => {
       setCars(prevCars => prevCars.map(c => 
           c.id === brokenCar.id ? { ...c, isBrokenDown: true, speed: 0, state: 'STOPPED' } : c
       ));
-  }, []);
+  }, [intersections]);
 
   const closedRoads = useMemo(() => {
     return new Set(incidents.map(inc => inc.blocksSegmentId).filter((id): id is string => !!id));
@@ -195,6 +242,34 @@ const App: React.FC = () => {
     }
   }, [isAnalyzing]);
   
+  useEffect(() => {
+    if (!searchQuery) {
+      setSearchResults([]);
+      return;
+    }
+
+    const lowerCaseQuery = searchQuery.toLowerCase();
+
+    // 1. Search Cities (Global)
+    const cityResults: SearchResult[] = Object.keys(CITY_CONFIGS)
+      .filter(city => city.toLowerCase().includes(lowerCaseQuery))
+      .map(city => ({ type: 'CITY', id: city, name: city }));
+
+    // 2. Search Intersections (Current City)
+    const intersectionResults: SearchResult[] = intersections
+      .filter(i => i.label.toLowerCase().includes(lowerCaseQuery))
+      .map(i => ({ type: 'INTERSECTION', id: i.id, name: i.label }));
+
+    // 3. Search Roads (Current City, unique by name)
+    const roadResults: SearchResult[] = roads
+      .filter(r => r.name.toLowerCase().includes(lowerCaseQuery))
+      .map(r => ({ type: 'ROAD', id: r.id, name: r.name }));
+
+    const uniqueRoadResults = Array.from(new Map(roadResults.map(item => [item.name, item])).values());
+
+    setSearchResults([...cityResults, ...intersectionResults, ...uniqueRoadResults]);
+  }, [searchQuery, intersections, roads]);
+
   const handleUpdateStats = useCallback((totalCars: number, avgSpeed: number, queueMap: Record<string, number>) => {
     const totalQueued = Object.values(queueMap).reduce((sum, q) => sum + q, 0);
     const congestion = Math.min(100, Math.round((totalQueued / (totalCars + 1)) * 200 + (totalCars / 100) * 50));
@@ -233,6 +308,22 @@ const App: React.FC = () => {
       setSelectedIntersectionId(null);
       setGeminiIncidentAnalysis(null);
       setActiveTab('INCIDENT');
+  };
+  
+  const handleSearchResultSelect = (result: SearchResult) => {
+    if (result.type === 'CITY') {
+      if (result.name !== currentCity) {
+        initializeDashboard(result.name);
+      }
+    } else if (result.type === 'INTERSECTION') {
+      handleIntersectionSelect(result.id);
+    } else if (result.type === 'ROAD') {
+      const road = roads.find(r => r.id === result.id);
+      if (road) {
+        handleIntersectionSelect(road.intersection1Id);
+      }
+    }
+    setSearchQuery('');
   };
 
   const runGeminiAnalysis = async () => {
@@ -276,8 +367,46 @@ const App: React.FC = () => {
       }
     }
 
-    const intel = await getRealWorldIntel(query, currentCity, location);
-    setRealWorldIntel(intel);
+    const intersectionLabels = intersections.map(i => i.label);
+    const intelResponse = await getRealWorldIntel(query, currentCity, intersectionLabels, location);
+
+    let incidentCreatedMessage: string | null = null;
+    const intelLines = intelResponse.intel.split('\n');
+    const lastLine = intelLines[intelLines.length - 1].trim();
+
+    if (lastLine.startsWith('INCIDENT::')) {
+        const parts = lastLine.split('::').map(p => p.trim());
+        if (parts.length === 4) {
+            const [_, intersectionLabel, type, description] = parts;
+            const intersection = intersections.find(i => i.label === intersectionLabel);
+            
+            const validTypes = ['ACCIDENT', 'CONSTRUCTION'];
+            if (intersection && validTypes.includes(type)) {
+                const newIncident: Incident = {
+                    id: `intel-${Date.now()}`,
+                    type: type as 'ACCIDENT' | 'CONSTRUCTION',
+                    location: {
+                        x: (intersection.x + 0.5) * BLOCK_SIZE,
+                        y: (intersection.y + 0.5) * BLOCK_SIZE,
+                    },
+                    description: description || 'Incident reported by AI based on real-world data.',
+                    severity: 'HIGH',
+                    timestamp: Date.now(),
+                };
+
+                setIncidents(prev => [...prev, newIncident]);
+                
+                intelResponse.intel = intelLines.slice(0, -1).join('\n').trim();
+                incidentCreatedMessage = `Logged a new '${type}' incident at '${intersectionLabel}' in the simulation.`;
+            }
+        }
+    }
+
+    if (incidentCreatedMessage) {
+        (intelResponse as any).incidentCreatedMessage = incidentCreatedMessage;
+    }
+
+    setRealWorldIntel(intelResponse);
     setIsIntelLoading(false);
   };
   
@@ -308,6 +437,7 @@ const App: React.FC = () => {
   const initializeDashboard = (city: string) => {
     setCurrentCity(city);
     setIntersections(generateIntersections(CITY_CONFIGS[city]));
+    setRoads(generateRoads(city));
     setCars([]);
     setIncidents([]);
     setStats({ totalCars: 0, avgSpeed: 0, congestionLevel: 0, carbonEmission: 0, incidents: 0 });
@@ -426,7 +556,7 @@ const App: React.FC = () => {
               />
             }
             {activeTab === 'UNIT' && selectedCar && 
-              <VehicleDetails car={selectedCar} intersections={intersections} />
+              <VehicleDetails car={selectedCar} intersections={intersections} roads={roads} />
             }
             {activeTab === 'INCIDENT' && selectedIncident && 
               <IncidentDetails
@@ -434,6 +564,7 @@ const App: React.FC = () => {
                 isAnalyzing={isIncidentAnalyzing}
                 analysis={geminiIncidentAnalysis}
                 onAnalyze={runGeminiIncidentAnalysis}
+                roads={roads}
               />
             }
             {activeTab === 'INTEL' && 
@@ -476,6 +607,11 @@ const App: React.FC = () => {
             setCvModeActive={setCvModeActive}
             recentlyUpdatedJunctions={recentlyUpdatedJunctions}
             closedRoads={closedRoads}
+            roads={roads}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searchResults={searchResults}
+            onSearchResultSelect={handleSearchResultSelect}
           />
         ) : (
           <CameraFeed />
