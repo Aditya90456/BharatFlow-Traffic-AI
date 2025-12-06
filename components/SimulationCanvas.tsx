@@ -21,6 +21,11 @@ interface SimulationCanvasProps {
   closedRoads: Set<string>;
 }
 
+const turnOptions = ['straight', 'left', 'right'] as const;
+type Turn = typeof turnOptions[number];
+type Direction = 'N' | 'S' | 'E' | 'W';
+
+
 export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
   intersections,
   setIntersections,
@@ -331,498 +336,470 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         ctx.fill();
         ctx.fillStyle = '#1E293B';
         const glassMargin = car.type === 'BUS' ? 2 : 1;
-        ctx.fillRect(-car.width/2 + glassMargin, -car.length/2 + 3, car.width - glassMargin*2, car.length * 0.25);
-        ctx.fillRect(-car.width/2 + glassMargin, car.length/2 - car.length * 0.25 - 2, car.width - glassMargin*2, car.length * 0.20);
+        ctx.fillRect(-car.width/2 + glassMargin, -car.length/2 + 3, car.width - glassMargin*2, car.length * 0.3);
       }
-
-      ctx.fillStyle = '#FEF08A';
-      ctx.shadowColor = '#FEF08A';
-      ctx.shadowBlur = 8;
-      ctx.fillRect(-car.width/2 + 1, -car.length/2 - 1, 2, 2);
-      ctx.fillRect(car.width/2 - 3, -car.length/2 - 1, 2, 2);
       
-      const isBraking = car.state === 'STOPPED' || car.isBrokenDown;
-      ctx.fillStyle = isBraking ? '#EF4444' : '#7F1D1D';
-      ctx.shadowColor = '#EF4444';
-      ctx.shadowBlur = isBraking ? 10 : 0;
-      
-      ctx.fillRect(-car.width/2 + 1, car.length/2 - 1, 2, 2);
-      ctx.fillRect(car.width/2 - 3, car.length/2 - 1, 2, 2);
-
       if (car.isBrokenDown) {
-        const hazardsOn = Math.floor(frameCountRef.current / 30) % 2 === 0;
-        if (hazardsOn) {
-            ctx.fillStyle = '#FF9933';
-            ctx.shadowColor = '#FF9933';
-            ctx.shadowBlur = 10;
-            ctx.fillRect(-car.width/2 - 2, car.length/2 - 1, 2, 2);
-            ctx.fillRect(car.width/2, car.length/2 - 1, 2, 2);
-            ctx.fillRect(-car.width/2 - 2, -car.length/2 + 1, 2, 2);
-            ctx.fillRect(car.width/2, -car.length/2 + 1, 2, 2);
-        }
+          const hazardOn = Math.floor(frameCountRef.current / 20) % 2 === 0;
+          if (hazardOn) {
+              ctx.fillStyle = 'rgba(255, 165, 0, 1)';
+              ctx.shadowColor = 'rgba(255, 165, 0, 1)';
+              ctx.shadowBlur = 10;
+              ctx.fillRect(-car.width/2 - 2, -car.length/2 - 2, 3, 3);
+              ctx.fillRect(car.width/2 - 1, -car.length/2 - 2, 3, 3);
+              ctx.fillRect(-car.width/2 - 2, car.length/2 - 1, 3, 3);
+              ctx.fillRect(car.width/2 - 1, car.length/2 - 1, 3, 3);
+              ctx.shadowBlur = 0;
+          }
       }
 
-      ctx.shadowBlur = 0;
       ctx.restore();
-    });
-  };
-
-  const drawIntersections = (ctx: CanvasRenderingContext2D, ints: Intersection[], updatedJunctions: Set<string>) => {
-    const frame = frameCountRef.current;
-
-    ints.forEach(i => {
-      const cx = (i.x + 0.5) * BLOCK_SIZE;
-      const cy = (i.y + 0.5) * BLOCK_SIZE;
-      const rw = ROAD_WIDTH;
-
-      if (updatedJunctions.has(i.id)) {
-        ctx.save();
-        const pulseProgress = (frame % 120) / 120;
-        const radius = rw / 2 + 15 + Math.sin(pulseProgress * Math.PI) * 5;
-        const alpha = Math.max(0, 0.8 - Math.sin(pulseProgress * Math.PI));
-        
-        ctx.strokeStyle = `rgba(192, 132, 252, ${alpha})`;
-        ctx.lineWidth = 4;
-        ctx.shadowColor = `rgba(192, 132, 252, 1)`;
-        ctx.shadowBlur = 15;
-        
-        ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      ctx.fillStyle = '#334155';
-      const stopLineOffset = rw * 0.7;
-      ctx.fillRect(cx - rw/2, cy - stopLineOffset, rw, 4);
-      ctx.fillRect(cx - rw/2, cy + stopLineOffset - 4, rw, 4);
-      ctx.fillRect(cx - stopLineOffset, cy - rw/2, 4, rw);
-      ctx.fillRect(cx + stopLineOffset - 4, cy - rw/2, 4, rw);
-
-      const drawLight = (lx: number, ly: number, state: LightState) => {
-        ctx.fillStyle = '#0F172A';
-        ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI * 2); ctx.fill();
-        
-        ctx.beginPath(); ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
-        let color = '#333', shadowColor = 'transparent';
-        if (state === LightState.GREEN) { color = '#10B981'; shadowColor = color; }
-        else if (state === LightState.RED) { color = '#EF4444'; shadowColor = color; }
-        else if (state === LightState.YELLOW) { color = '#F59E0B'; shadowColor = color; }
-        ctx.fillStyle = color;
-        ctx.shadowColor = shadowColor;
-        ctx.shadowBlur = 12;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      };
-
-      const lightOffset = rw * 0.4;
-
-      if (i.overrideState === 'EMERGENCY_ALL_RED') {
-        const flash = Math.floor(frame / 15) % 2 === 0;
-        if (flash) {
-            drawLight(cx - lightOffset, cy - lightOffset, LightState.RED);
-            drawLight(cx + lightOffset, cy + lightOffset, LightState.RED);
-            drawLight(cx + lightOffset, cy - lightOffset, LightState.RED);
-            drawLight(cx - lightOffset, cy + lightOffset, LightState.RED);
-        }
-      } else {
-        drawLight(cx - lightOffset, cy - lightOffset, i.lightState.ns);
-        drawLight(cx + lightOffset, cy + lightOffset, i.lightState.ns);
-        drawLight(cx + lightOffset, cy - lightOffset, i.lightState.ew);
-        drawLight(cx - lightOffset, cy + lightOffset, i.lightState.ew);
-      }
-    });
-  };
-
-  const drawIncidents = (ctx: CanvasRenderingContext2D, incidentsToDraw: Incident[], selectedId: string | null) => {
-    incidentsToDraw.forEach(incident => {
-        const { x, y } = incident.location;
-        const isSelected = incident.id === selectedId;
-
-        ctx.save();
-        ctx.translate(x, y);
-
-        const pulseProgress = (frameCountRef.current % 120) / 120;
-        const radius = 15 + Math.sin(pulseProgress * Math.PI) * 5;
-        const alpha = 0.5 + Math.sin(pulseProgress * Math.PI) * 0.4;
-        
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        
-        let color = 'orange';
-        if(incident.severity === 'HIGH') color = 'red';
-
-        ctx.fillStyle = `rgba(${color === 'orange' ? '255, 165, 0' : '255, 0, 0'}, ${alpha * 0.2})`;
-        ctx.fill();
-
-        ctx.strokeStyle = `rgba(${color === 'orange' ? '249, 115, 22' : '239, 68, 68'}, ${alpha})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.fillStyle = isSelected ? '#FBBF24' : '#F97316';
-        ctx.shadowColor = '#F97316';
-        ctx.shadowBlur = 15;
-        
-        ctx.beginPath();
-        ctx.moveTo(0, -8);
-        ctx.lineTo(8, 8);
-        ctx.lineTo(-8, 8);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.shadowBlur = 0;
-        ctx.restore();
-    });
-  };
-
-  const drawCVOverlay = (ctx: CanvasRenderingContext2D, carsToDraw: Car[]) => {
-    ctx.save();
-    carsToDraw.forEach(car => {
-      const confidence = confidenceMap.get(car.id) || (Math.random() * 8 + 92);
-      if (!confidenceMap.has(car.id)) confidenceMap.set(car.id, confidence);
       
-      let color = car.type === 'BUS' ? '#EF4444' : car.type === 'AUTO' ? '#F59E0B' : '#06B6D4';
-      if (car.type === 'POLICE') color = '#3B82F6';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.8;
-      const padding = 4;
-      ctx.strokeRect(car.x - car.width/2 - padding, car.y - car.length/2 - padding, car.width + padding*2, car.length + padding*2);
-      ctx.fillStyle = color;
-      ctx.font = '8px JetBrains Mono';
-      ctx.fillText(`${car.type}:${confidence.toFixed(1)}%`, car.x - car.width/2 - padding, car.y - car.length/2 - padding - 4);
+      if (physicsState.current.selectedCarId === car.id) {
+          ctx.strokeStyle = '#FF9933';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          const pulse = Math.abs(Math.sin(frameCountRef.current / 20)) * 5;
+          ctx.beginPath();
+          ctx.arc(car.x, car.y, car.length + pulse, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+      }
     });
-    ctx.restore();
+  };
+
+ const drawIntersections = (ctx: CanvasRenderingContext2D, intersectionsToDraw: Intersection[]) => {
+    intersectionsToDraw.forEach(intersection => {
+      const cx = (intersection.x + 0.5) * BLOCK_SIZE;
+      const cy = (intersection.y + 0.5) * BLOCK_SIZE;
+      
+      ctx.fillStyle = '#111218';
+      ctx.beginPath();
+      ctx.rect(cx - ROAD_WIDTH/2, cy - ROAD_WIDTH/2, ROAD_WIDTH, ROAD_WIDTH);
+      ctx.fill();
+      
+      const lightSize = 8;
+      const lightOffset = ROAD_WIDTH/2 - lightSize;
+
+      const colors = {
+        [LightState.RED]: '#EF4444',
+        [LightState.YELLOW]: '#F59E0B',
+        [LightState.GREEN]: '#10B981'
+      };
+      
+      // Draw NS Lights
+      const nsColor = colors[intersection.lightState.ns];
+      ctx.fillStyle = nsColor;
+      ctx.shadowColor = nsColor;
+      ctx.shadowBlur = intersection.lightState.ns !== LightState.RED ? 15 : 5;
+      ctx.fillRect(cx - lightSize/2, cy - lightOffset, lightSize, lightSize); // Top
+      ctx.fillRect(cx - lightSize/2, cy + lightOffset - lightSize, lightSize, lightSize); // Bottom
+      
+      // Draw EW Lights
+      const ewColor = colors[intersection.lightState.ew];
+      ctx.fillStyle = ewColor;
+      ctx.shadowColor = ewColor;
+      ctx.shadowBlur = intersection.lightState.ew !== LightState.RED ? 15 : 5;
+      ctx.fillRect(cx - lightOffset, cy - lightSize/2, lightSize, lightSize); // Left
+      ctx.fillRect(cx + lightOffset - lightSize, cy - lightSize/2, lightSize, lightSize); // Right
+      
+      ctx.shadowBlur = 0;
+
+      if(physicsState.current.recentlyUpdatedJunctions.has(intersection.id)) {
+        ctx.strokeStyle = '#06B6D4';
+        ctx.lineWidth = 3;
+        const pulse = 1 - (frameCountRef.current % 150) / 150; // fades out
+        ctx.globalAlpha = pulse;
+        ctx.beginPath();
+        ctx.arc(cx, cy, ROAD_WIDTH * 0.8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+    });
   };
   
+  const drawCvOverlay = (ctx: CanvasRenderingContext2D, carsToDraw: Car[]) => {
+     ctx.font = '10px "JetBrains Mono"';
+     ctx.lineWidth = 1;
+     carsToDraw.forEach(car => {
+        const key = car.id;
+        if (!confidenceMap.has(key)) {
+           confidenceMap.set(key, 0.9 + Math.random() * 0.1);
+        }
+        const confidence = confidenceMap.get(key)!;
+        
+        ctx.strokeStyle = `rgba(16, 185, 129, ${0.3 + confidence * 0.5})`;
+        ctx.beginPath();
+        ctx.rect(car.x - car.width, car.y - car.length, car.width*2, car.length*2);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.8)';
+        const text = `${car.type}:${(confidence*100).toFixed(0)}%`;
+        const textWidth = ctx.measureText(text).width;
+        ctx.fillRect(car.x - textWidth/2 - 2, car.y - car.length - 14, textWidth + 4, 12);
+        ctx.fillStyle = 'black';
+        ctx.fillText(text, car.x - textWidth/2, car.y - car.length - 4);
+     });
+  };
+  
+   const drawIncidentMarkers = (ctx: CanvasRenderingContext2D, incidentsToDraw: Incident[]) => {
+      incidentsToDraw.forEach(incident => {
+         const { x, y } = incident.location;
+         const isSelected = incident.id === physicsState.current.selectedIncidentId;
+         const pulse = Math.abs(Math.sin(frameCountRef.current / 20));
+         
+         ctx.save();
+         ctx.translate(x, y);
+
+         ctx.fillStyle = `rgba(239, 68, 68, ${0.3 + pulse * 0.3})`;
+         ctx.beginPath();
+         ctx.arc(0, 0, 20 + pulse * 5, 0, Math.PI * 2);
+         ctx.fill();
+
+         ctx.fillStyle = '#EF4444';
+         ctx.beginPath();
+         ctx.moveTo(0, -10);
+         ctx.lineTo(10, 5);
+         ctx.lineTo(-10, 5);
+         ctx.closePath();
+         ctx.fill();
+         ctx.strokeStyle = 'white';
+         ctx.lineWidth = 1.5;
+         ctx.stroke();
+
+         ctx.fillStyle = 'white';
+         ctx.font = 'bold 12px sans-serif';
+         ctx.textAlign = 'center';
+         ctx.textBaseline = 'middle';
+         ctx.fillText('!', 0, 3);
+         
+         if (isSelected) {
+            ctx.strokeStyle = '#F59E0B';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, 30 + pulse * 5, 0, Math.PI * 2);
+            ctx.stroke();
+         }
+
+         ctx.restore();
+      });
+   };
+
   const animate = () => {
     frameCountRef.current++;
     const frame = frameCountRef.current;
-    
-    const { intersections: currentIntersections, cars: currentCars, incidents: currentIncidents, closedRoads: currentClosedRoads } = physicsState.current;
-    
-    const updatedIntersections = currentIntersections.map(i => {
-      if (i.overrideState) {
-        let newLightState = { ...i.lightState };
-        if (i.overrideState === 'NS_GREEN') newLightState = { ns: LightState.GREEN, ew: LightState.RED };
-        else if (i.overrideState === 'EW_GREEN') newLightState = { ns: LightState.RED, ew: LightState.GREEN };
-        else if (i.overrideState === 'EMERGENCY_ALL_RED') newLightState = { ns: LightState.RED, ew: LightState.RED };
-        return { ...i, lightState: newLightState, timer: 999 };
-      }
+    let newCars = [...physicsState.current.cars];
+    let newIntersections = [...physicsState.current.intersections];
 
-      let newTimer = i.timer - 1;
-      let newLightState = { ...i.lightState };
-      
-      if (newTimer <= 0) {
-        if (i.lightState.ns === LightState.GREEN || i.lightState.ew === LightState.GREEN) {
-          if (i.lightState.ns === LightState.GREEN) newLightState.ns = LightState.YELLOW;
-          if (i.lightState.ew === LightState.GREEN) newLightState.ew = LightState.YELLOW;
-          newTimer = YELLOW_DURATION;
+    if (isRunning) {
+      // 1. Update intersection timers and light states
+      newIntersections = newIntersections.map(intersection => {
+        let timer = intersection.timer - 1;
+        let ns = intersection.lightState.ns;
+        let ew = intersection.lightState.ew;
+
+        if (intersection.overrideState) {
+          ns = (intersection.overrideState === 'NS_GREEN') ? LightState.GREEN : LightState.RED;
+          ew = (intersection.overrideState === 'EW_GREEN') ? LightState.GREEN : LightState.RED;
+          if (intersection.overrideState === 'EMERGENCY_ALL_RED') {
+            ns = LightState.RED; ew = LightState.RED;
+          }
         } else {
-          newLightState = i.lightState.ns === LightState.YELLOW ? {ns: LightState.RED, ew: LightState.GREEN} : {ew: LightState.RED, ns: LightState.GREEN};
-          newTimer = i.greenDuration;
-        }
-      }
-      return { ...i, timer: newTimer, lightState: newLightState };
-    });
-    
-    let newCars = [...currentCars];
-    if (frame % 30 === 0) {
-      const newCar = spawnCar(newCars);
-      if (newCar) newCars.push(newCar);
-    }
-    
-    const queueMap: Record<string, number> = {};
-    
-    newCars = newCars.map(car => {
-      if (car.isBrokenDown) return car;
-
-      let { x, y, dir, speed, state, targetIntersectionId, mission } = car;
-
-      if (!targetIntersectionId) {
-        const gridX = Math.floor(x / BLOCK_SIZE), gridY = Math.floor(y / BLOCK_SIZE);
-        let targetX = -1, targetY = -1;
-        if (dir === 'S' && y < (gridY + 0.5) * BLOCK_SIZE) { targetX = gridX; targetY = gridY; }
-        else if (dir === 'N' && y > (gridY + 0.5) * BLOCK_SIZE) { targetX = gridX; targetY = gridY; }
-        else if (dir === 'E' && x < (gridX + 0.5) * BLOCK_SIZE) { targetX = gridX; targetY = gridY; }
-        else if (dir === 'W' && x > (gridX + 0.5) * BLOCK_SIZE) { targetX = gridX; targetY = gridY; }
-
-        if (targetX >= 0 && targetX < GRID_SIZE && targetY >= 0 && targetY < GRID_SIZE) {
-          targetIntersectionId = `INT-${targetX}-${targetY}`;
-        }
-      }
-      
-      const intersection = updatedIntersections.find(i => i.id === targetIntersectionId);
-      let isRedLight = false;
-      
-      if (intersection) {
-        const iX = (intersection.x + 0.5) * BLOCK_SIZE;
-        const iY = (intersection.y + 0.5) * BLOCK_SIZE;
-        const lights = intersection.lightState;
-        
-        const stopLineMargin = ROAD_WIDTH / 2;
-        const decisionDistance = (speed * speed) / (2 * DECELERATION) + car.length;
-
-        let isApproaching = false;
-        let distanceToStopLine = Infinity;
-
-        switch (dir) {
-            case 'N':
-                distanceToStopLine = y - (iY + stopLineMargin);
-                if (distanceToStopLine > 0 && distanceToStopLine < decisionDistance) isApproaching = true;
-                break;
-            case 'S':
-                distanceToStopLine = (iY - stopLineMargin) - y;
-                if (distanceToStopLine > 0 && distanceToStopLine < decisionDistance) isApproaching = true;
-                break;
-            case 'W':
-                distanceToStopLine = x - (iX + stopLineMargin);
-                if (distanceToStopLine > 0 && distanceToStopLine < decisionDistance) isApproaching = true;
-                break;
-            case 'E':
-                distanceToStopLine = (iX - stopLineMargin) - x;
-                if (distanceToStopLine > 0 && distanceToStopLine < decisionDistance) isApproaching = true;
-                break;
-        }
-
-        if (isApproaching) {
-            if ((dir === 'N' || dir === 'S') && lights.ns !== LightState.GREEN) isRedLight = true;
-            if ((dir === 'W' || dir === 'E') && lights.ew !== LightState.GREEN) isRedLight = true;
-        }
-      }
-      
-      let isBlocked = false;
-      const SAFETY_BUFFER = 8;
-      for (const other of newCars) {
-        if (car.id === other.id) continue;
-        
-        const dx = other.x - car.x;
-        const dy = other.y - car.y;
-        
-        let isDirectlyAhead = false;
-        let distanceToOther = Infinity;
-
-        switch (car.dir) {
-            case 'N':
-                if (dy < 0 && Math.abs(dx) < car.width) { isDirectlyAhead = true; distanceToOther = -dy; }
-                break;
-            case 'S':
-                if (dy > 0 && Math.abs(dx) < car.width) { isDirectlyAhead = true; distanceToOther = dy; }
-                break;
-            case 'W':
-                if (dx < 0 && Math.abs(dy) < car.width) { isDirectlyAhead = true; distanceToOther = -dx; }
-                break;
-            case 'E':
-                if (dx > 0 && Math.abs(dy) < car.width) { isDirectlyAhead = true; distanceToOther = dx; }
-                break;
-        }
-        
-        if (isDirectlyAhead) {
-            const safeFollowingDistance = (other.length / 2) + (car.length / 2) + SAFETY_BUFFER + (car.speed * 1.5);
-            if (distanceToOther < safeFollowingDistance) {
-                isBlocked = true;
-                break;
+            if (timer <= 0) {
+                if (ns === LightState.GREEN) {
+                    ns = LightState.YELLOW;
+                    timer = YELLOW_DURATION;
+                } else if (ns === LightState.YELLOW) {
+                    ns = LightState.RED;
+                    ew = LightState.GREEN;
+                    timer = intersection.greenDuration;
+                } else if (ew === LightState.GREEN) {
+                    ew = LightState.YELLOW;
+                    timer = YELLOW_DURATION;
+                } else if (ew === LightState.YELLOW) {
+                    ew = LightState.RED;
+                    ns = LightState.GREEN;
+                    timer = intersection.greenDuration;
+                }
             }
         }
-      }
-      
-      let shouldYield = false;
-      let maxSpeed = car.type === 'BUS' ? MAX_SPEED * 0.7 : car.type === 'AUTO' ? MAX_SPEED * 0.85 : MAX_SPEED;
+        return { ...intersection, timer, lightState: { ns, ew } };
+      });
+      physicsState.current.intersections = newIntersections;
 
-      if (car.type === 'POLICE' && mission && mission.type === 'RESPONSE') {
-        isRedLight = false;
-        maxSpeed = MAX_SPEED * 1.5;
-      } else if (car.type !== 'POLICE') {
-        for (const other of newCars) {
-          if (other.type === 'POLICE' && other.mission?.type === 'RESPONSE') {
-            const dist = Math.hypot(other.x - x, other.y - y);
-            if (dist < ROAD_WIDTH * 2) {
-              shouldYield = true;
-              break;
+      // 2. Spawn new cars
+      if (frame % 30 === 0 && newCars.length < 100) {
+        const car = spawnCar(newCars);
+        if (car) newCars.push(car);
+      }
+
+      const queueMap: Record<string, number> = {};
+
+      // 3. Update car physics
+      newCars = newCars.map(car => {
+        if (car.isBrokenDown) return car;
+
+        let { x, y, dir, speed, state, targetIntersectionId, mission } = car;
+        
+        const gridX = Math.floor(x / BLOCK_SIZE);
+        const gridY = Math.floor(y / BLOCK_SIZE);
+        
+        if (car.type === 'POLICE' && car.mission) {
+            const currentMission = car.mission;
+            if (currentMission.type === 'RESPONSE' && currentMission.targetId) {
+                // Response logic is handled at intersections
+            } else { // PATROL
+                if (frame % 300 === 0 && Math.random() < 0.2) { // Periodically pick a new patrol point
+                    const randomInt = newIntersections[Math.floor(Math.random() * newIntersections.length)];
+                    mission = { ...currentMission, targetId: randomInt.id };
+                }
+            }
+        }
+
+        // Set initial target intersection
+        if (!targetIntersectionId) {
+          if (dir === 'S') targetIntersectionId = `INT-${gridX}-${gridY}`;
+          if (dir === 'N') targetIntersectionId = `INT-${gridX}-${gridY-1}`;
+          if (dir === 'E') targetIntersectionId = `INT-${gridX}-${gridY}`;
+          if (dir === 'W') targetIntersectionId = `INT-${gridX-1}-${gridY}`;
+        }
+
+        let isApproachingRed = false;
+        let carInFront: Car | null = null;
+
+        const currentIntersection = physicsState.current.intersections.find(i => i.id === targetIntersectionId);
+        
+        if (currentIntersection) {
+          const intX = (currentIntersection.x + 0.5) * BLOCK_SIZE;
+          const intY = (currentIntersection.y + 0.5) * BLOCK_SIZE;
+          const dist = Math.hypot(x - intX, y - intY);
+          
+          const stoppingDist = (speed * speed) / (2 * DECELERATION) + car.length;
+          
+          const isPoliceResponding = car.type === 'POLICE' && mission?.type === 'RESPONSE';
+
+          if (dist < stoppingDist && !isPoliceResponding) {
+            const lightState = (dir === 'N' || dir === 'S') ? currentIntersection.lightState.ns : currentIntersection.lightState.ew;
+            if (lightState === LightState.RED || (lightState === LightState.YELLOW && dist < ROAD_WIDTH/2)) {
+              isApproachingRed = true;
+            }
+          }
+
+          if (dist < ROAD_WIDTH * 1.5) { // Check for queues when close to intersection
+              const queueKey = `${currentIntersection.id}_${dir}`;
+              if (!queueMap[queueKey]) queueMap[queueKey] = 0;
+              queueMap[queueKey]++;
+          }
+          
+          // Intersection turning logic
+          if (dist < 1 && speed < 0.1) {
+            let chosenTurn: Turn | null = null;
+            
+            const possibleTurns: Record<Direction, Record<Turn, Direction>> = {
+                N: { straight: 'N', left: 'E', right: 'W' },
+                S: { straight: 'S', left: 'W', right: 'E' },
+                E: { straight: 'E', left: 'S', right: 'N' },
+                W: { straight: 'W', left: 'N', right: 'S' },
+            };
+
+            const getAvailableTurns = (): Turn[] => {
+                const turns: Turn[] = [];
+                const currentDir = car.dir;
+                Object.keys(possibleTurns[currentDir]).forEach(turn => {
+                    const nextDir = possibleTurns[currentDir][turn as Turn];
+                    let nextGridX = currentIntersection.x;
+                    let nextGridY = currentIntersection.y;
+                    if (nextDir === 'E') nextGridX++;
+                    if (nextDir === 'W') nextGridX--;
+                    if (nextDir === 'S') nextGridY++;
+                    if (nextDir === 'N') nextGridY--;
+
+                    const segmentId1 = [`INT-${currentIntersection.x}-${currentIntersection.y}`, `INT-${nextGridX}-${nextGridY}`].sort().join('_');
+                     if (!physicsState.current.closedRoads.has(segmentId1)) {
+                        turns.push(turn as Turn);
+                    }
+                });
+                return turns;
+            };
+            
+            const availableTurns = getAvailableTurns();
+
+            if (car.type === 'POLICE' && car.mission && car.mission.type === 'RESPONSE' && car.mission.targetId) {
+                const targetInt = physicsState.current.intersections.find(i => i.id === car.mission!.targetId);
+                if (targetInt) {
+                    const dx = targetInt.x - currentIntersection.x;
+                    const dy = targetInt.y - currentIntersection.y;
+
+                    if (dir === 'N') {
+                        if (dy < 0) chosenTurn = 'straight';
+                        else if (dx > 0) chosenTurn = 'left';
+                        else if (dx < 0) chosenTurn = 'right';
+                    } else if (dir === 'S') {
+                         if (dy > 0) chosenTurn = 'straight';
+                         else if (dx < 0) chosenTurn = 'left';
+                         else if (dx > 0) chosenTurn = 'right';
+                    } else if (dir === 'E') {
+                        if (dx > 0) chosenTurn = 'straight';
+                        else if (dy > 0) chosenTurn = 'left';
+                        else if (dy < 0) chosenTurn = 'right';
+                    } else if (dir === 'W') {
+                        if (dx < 0) chosenTurn = 'straight';
+                        else if (dy < 0) chosenTurn = 'left';
+                        else if (dy > 0) chosenTurn = 'right';
+                    }
+                    if (chosenTurn && !availableTurns.includes(chosenTurn)) {
+                       chosenTurn = availableTurns.length > 0 ? availableTurns[Math.floor(Math.random() * availableTurns.length)] : null;
+                    }
+                }
+            } else {
+                chosenTurn = availableTurns.length > 0 ? availableTurns[Math.floor(Math.random() * availableTurns.length)] : null;
+            }
+
+            if (chosenTurn) {
+                const turn = chosenTurn;
+                const newDir = possibleTurns[dir][turn];
+                dir = newDir;
+                state = 'ACCELERATING';
+                let nextGridX = currentIntersection.x;
+                let nextGridY = currentIntersection.y;
+
+                if (newDir === 'E') {
+                    nextGridX++;
+                    x = intX + ROAD_WIDTH/2 + 1;
+                    y = getLaneCenter(gridY, false, true);
+                } else if (newDir === 'W') {
+                    nextGridX--;
+                    x = intX - ROAD_WIDTH/2 - 1;
+                    y = getLaneCenter(gridY, false, false);
+                } else if (newDir === 'S') {
+                    nextGridY++;
+                    y = intY + ROAD_WIDTH/2 + 1;
+                    x = getLaneCenter(gridX, true, true);
+                } else if (newDir === 'N') {
+                    nextGridY--;
+                    y = intY - ROAD_WIDTH/2 - 1;
+                    x = getLaneCenter(gridX, true, false);
+                }
+                
+                if(nextGridX >= 0 && nextGridX < GRID_SIZE && nextGridY >= 0 && nextGridY < GRID_SIZE) {
+                  targetIntersectionId = `INT-${nextGridX}-${nextGridY}`;
+                } else {
+                  targetIntersectionId = null; // Leaving grid
+                }
             }
           }
         }
-      }
+        
+        carInFront = newCars.find(otherCar => {
+           if (otherCar.id === car.id) return false;
+           let dX = otherCar.x - x;
+           let dY = otherCar.y - y;
+           if (dir === 'N') return dY < 0 && dY > -40 && Math.abs(dX) < car.width;
+           if (dir === 'S') return dY > 0 && dY < 40 && Math.abs(dX) < car.width;
+           if (dir === 'E') return dX > 0 && dX < 40 && Math.abs(dY) < car.width;
+           if (dir === 'W') return dX < 0 && dX > -40 && Math.abs(dY) < car.width;
+           return false;
+        });
 
-      if (isRedLight || isBlocked || shouldYield) {
-        speed = Math.max(0, speed - DECELERATION);
-        state = 'STOPPED';
-        if (isRedLight && intersection) queueMap[`${intersection.id}_${dir}`] = (queueMap[`${intersection.id}_${dir}`] || 0) + 1;
-      } else {
-        speed = Math.min(maxSpeed, speed + ACCELERATION);
-        state = speed < maxSpeed ? 'ACCELERATING' : 'MOVING';
-      }
-
-      if (dir === 'N') y -= speed; if (dir === 'S') y += speed;
-      if (dir === 'W') x -= speed; if (dir === 'E') x += speed;
-
-      if (intersection) {
-        const iX = (intersection.x + 0.5) * BLOCK_SIZE, iY = (intersection.y + 0.5) * BLOCK_SIZE;
-        if (Math.abs(x - iX) < car.speed * 2 && Math.abs(y - iY) < car.speed * 2) {
-            targetIntersectionId = null;
-            if (mission && mission.type === 'RESPONSE' && mission.targetId) {
-                const targetInt = updatedIntersections.find(i => i.id === mission.targetId);
-                if (targetInt) {
-                    if (targetInt.x > intersection.x && dir !== 'E') dir = 'E';
-                    else if (targetInt.x < intersection.x && dir !== 'W') dir = 'W';
-                    else if (targetInt.y > intersection.y && dir !== 'S') dir = 'S';
-                    else if (targetInt.y < intersection.y && dir !== 'N') dir = 'N';
-                }
-            } else {
-                const possibleTurns: Record<'N'|'S'|'E'|'W', Record<'straight'|'left'|'right', 'N'|'S'|'E'|'W'>> = {
-                    'N': { 'straight': 'N', 'left': 'W', 'right': 'E' },
-                    'S': { 'straight': 'S', 'left': 'E', 'right': 'W' },
-                    'E': { 'straight': 'E', 'left': 'N', 'right': 'S' },
-                    'W': { 'straight': 'W', 'left': 'S', 'right': 'N' }
-                };
-
-                const getNextIntersectionCoords = (currentInt: Intersection, direction: 'N'|'S'|'E'|'W') => {
-                    if (direction === 'N') return { x: currentInt.x, y: currentInt.y - 1 };
-                    if (direction === 'S') return { x: currentInt.x, y: currentInt.y + 1 };
-                    if (direction === 'E') return { x: currentInt.x + 1, y: currentInt.y };
-                    if (direction === 'W') return { x: currentInt.x - 1, y: currentInt.y };
-                    return {x: -1, y: -1};
-                };
-                
-                let availableOptions: ('straight'|'left'|'right')[] = ['straight', 'left', 'right'];
-                
-                availableOptions = availableOptions.filter(turn => {
-                    // FIX: Removed incorrect type cast. `turn` is already of the correct type.
-                    const nextDir = possibleTurns[dir][turn];
-                    const nextCoords = getNextIntersectionCoords(intersection, nextDir);
-                    return nextCoords.x >= 0 && nextCoords.x < GRID_SIZE && nextCoords.y >= 0 && nextCoords.y < GRID_SIZE;
-                });
-
-                availableOptions = availableOptions.filter(turn => {
-                    // FIX: Removed incorrect type cast. `turn` is already of the correct type.
-                    const nextDir = possibleTurns[dir][turn];
-                    const nextCoords = getNextIntersectionCoords(intersection, nextDir);
-                    const nextIntId = `INT-${nextCoords.x}-${nextCoords.y}`;
-                    const segmentId = [intersection.id, nextIntId].sort().join('_');
-                    return !currentClosedRoads.has(segmentId);
-                });
-                
-                if (availableOptions.length > 0) {
-                    const chosenTurn = availableOptions[Math.floor(Math.random() * availableOptions.length)];
-                    // FIX: Removed incorrect type cast. `chosenTurn` is already of the correct type.
-                    dir = possibleTurns[dir][chosenTurn];
-                } else {
-                    if (dir === 'N') dir = 'S'; else if (dir === 'S') dir = 'N';
-                    else if (dir === 'E') dir = 'W'; else if (dir === 'W') dir = 'E';
-                }
-            }
-            if (mission && mission.type === 'RESPONSE' && mission.targetId === intersection.id) {
-              mission = { type: 'PATROL', targetId: null };
-            }
+        if (isApproachingRed || carInFront) {
+          state = 'STOPPED';
+          speed = Math.max(0, speed - DECELERATION);
+        } else {
+          state = 'MOVING';
+          speed = Math.min(MAX_SPEED, speed + ACCELERATION);
         }
-      }
-      return { ...car, x, y, dir, speed, state, targetIntersectionId, mission };
-    }).filter(c => c.x > -50 && c.x < getCanvasSize().width + 50 && c.y > -50 && c.y < getCanvasSize().height + 50);
+        
+        if (dir === 'N') y -= speed;
+        if (dir === 'S') y += speed;
+        if (dir === 'E') x += speed;
+        if (dir === 'W') x -= speed;
 
-    physicsState.current.intersections = updatedIntersections;
-    physicsState.current.cars = newCars;
+        return { ...car, x, y, dir, speed, state, targetIntersectionId, mission };
+      }).filter(c => 
+          c.x > -50 && c.x < GRID_SIZE * BLOCK_SIZE + 50 &&
+          c.y > -50 && c.y < GRID_SIZE * BLOCK_SIZE + 50
+      );
 
+      // 4. Set state
+      setCars(newCars);
+      setIntersections(newIntersections);
+
+      // 5. Update stats
+      const totalSpeed = newCars.reduce((sum, car) => sum + car.speed, 0);
+      onUpdateStats(newCars.length, newCars.length > 0 ? totalSpeed / newCars.length : 0, queueMap);
+    }
+
+    // 6. Drawing
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
-    const { width, height } = getCanvasSize();
-    if(canvas.width !== width || canvas.height !== height) {
+    if (ctx && canvas) {
+      const { width, height } = getCanvasSize();
       canvas.width = width;
       canvas.height = height;
-    }
 
-    ctx.clearRect(0, 0, width, height);
-    drawCityBackground(ctx, width, height);
-    drawRoads(ctx, width, height, newCars, currentClosedRoads);
-    if (cvModeActive) {
-      ctx.save();
-      ctx.filter = 'grayscale(1) contrast(1.5)';
+      drawCityBackground(ctx, width, height);
+      drawRoads(ctx, width, height, newCars, physicsState.current.closedRoads);
+      drawIntersections(ctx, physicsState.current.intersections);
       drawCars(ctx, newCars);
-      ctx.restore();
-      drawCVOverlay(ctx, newCars);
-    } else {
-      drawCars(ctx, newCars);
+      drawIncidentMarkers(ctx, physicsState.current.incidents);
+      if (cvModeActive) {
+        drawCvOverlay(ctx, newCars);
+      }
     }
-    
-    drawIncidents(ctx, currentIncidents, physicsState.current.selectedIncidentId);
-    drawIntersections(ctx, updatedIntersections, physicsState.current.recentlyUpdatedJunctions);
-    
-    const selectedCar = newCars.find(c => c.id === physicsState.current.selectedCarId);
-    if (selectedCar) {
-      ctx.strokeStyle = '#FF9933';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#FF9933';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(selectedCar.x, selectedCar.y, 20, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-
-    const totalSpeed = newCars.reduce((sum, c) => sum + c.speed, 0);
-    onUpdateStats(newCars.length, newCars.length > 0 ? totalSpeed / newCars.length : 0, queueMap);
 
     requestRef.current = requestAnimationFrame(animate);
   };
-  
-  useEffect(() => {
-    if (isRunning) {
-      requestRef.current = requestAnimationFrame(animate);
-    } else {
-      cancelAnimationFrame(requestRef.current);
-    }
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [isRunning]);
 
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [isRunning, cvModeActive]);
+  
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
 
-    let clickedIncident = null;
-    const CLICK_RADIUS = 20;
-    for (const incident of physicsState.current.incidents) {
-        if (Math.hypot(incident.location.x - x, incident.location.y - y) < CLICK_RADIUS) {
-            clickedIncident = incident;
-            break;
-        }
-    }
+    // Check for incident click first
+    const clickedIncident = physicsState.current.incidents.find(incident => {
+        const dist = Math.hypot(x - incident.location.x, y - incident.location.y);
+        return dist < 30; 
+    });
 
     if (clickedIncident) {
         onIncidentSelect(clickedIncident.id);
         return;
     }
 
-    let clickedCar = null;
-    for (const car of physicsState.current.cars) {
-      if (Math.sqrt(Math.pow(car.x - x, 2) + Math.pow(car.y - y, 2)) < car.length) {
-        clickedCar = car;
-        break;
-      }
-    }
+    // Check for car click
+    const clickedCar = physicsState.current.cars.find(car => {
+      const dist = Math.hypot(x - car.x, y - car.y);
+      return dist < car.length;
+    });
 
     if (clickedCar) {
       onCarSelect(clickedCar.id);
       return;
     }
-    
-    const gridX = Math.floor(x / BLOCK_SIZE), gridY = Math.floor(y / BLOCK_SIZE);
-    const int = physicsState.current.intersections.find(i => i.x === gridX && i.y === gridY);
-    if (int) {
-      if (Math.abs(x - ((int.x + 0.5) * BLOCK_SIZE)) < BLOCK_SIZE / 2 && Math.abs(y - ((int.y + 0.5) * BLOCK_SIZE)) < BLOCK_SIZE / 2) {
-        onIntersectionSelect(int.id);
-        return;
-      }
-    }
 
-    onIntersectionSelect("");
-    onCarSelect("");
+    // Check for intersection click
+    const clickedIntersection = physicsState.current.intersections.find(i => {
+      const intX = (i.x + 0.5) * BLOCK_SIZE;
+      const intY = (i.y + 0.5) * BLOCK_SIZE;
+      const dist = Math.hypot(x - intX, y - intY);
+      return dist < ROAD_WIDTH / 2;
+    });
+
+    if (clickedIntersection) {
+      onIntersectionSelect(clickedIntersection.id);
+      return;
+    }
   };
 
-  return <canvas ref={canvasRef} onClick={handleCanvasClick} className="w-full h-full" />;
+
+  return <canvas ref={canvasRef} onClick={handleCanvasClick} className="bg-[#030305]" />;
 };

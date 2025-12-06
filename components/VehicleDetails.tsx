@@ -22,12 +22,10 @@ export const VehicleDetails: React.FC<VehicleDetailsProps> = ({ car, intersectio
   const getMissionText = () => {
     if (car.type !== 'POLICE' || !car.mission) return 'N/A';
 
-    const { mission } = car;
-
-    if (mission.type === 'PATROL') return 'Patrolling Grid';
+    if (car.mission.type === 'PATROL') return 'Patrolling Grid';
     
-    if (mission.type === 'RESPONSE' && mission.targetId) {
-        const target = intersections.find(i => i.id === mission.targetId);
+    if (car.mission.type === 'RESPONSE' && car.mission.targetId) {
+        const target = intersections.find(i => i.id === car.mission.targetId);
         return `Responding to ${target ? target.label : 'incident'}`;
     }
     return 'Standby';
