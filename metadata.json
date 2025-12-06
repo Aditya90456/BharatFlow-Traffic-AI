@@ -2,6 +2,7 @@
   "name": "BharatFlow AI",
   "description": "Enterprise Traffic Management Dashboard",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

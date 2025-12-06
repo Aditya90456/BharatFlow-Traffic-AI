@@ -4,7 +4,7 @@ export enum LightState {
   YELLOW = 'YELLOW'
 }
 
-export type VehicleType = 'CAR' | 'AUTO' | 'BUS';
+export type VehicleType = 'CAR' | 'AUTO' | 'BUS' | 'POLICE';
 
 export interface Coordinates {
   x: number;
@@ -22,6 +22,7 @@ export interface Intersection {
   };
   timer: number; // Seconds remaining in current state
   greenDuration: number; // How long green lasts
+  overrideState?: 'NS_GREEN' | 'EW_GREEN' | 'EMERGENCY_ALL_RED' | null;
 }
 
 export interface Car {
@@ -35,6 +36,8 @@ export interface Car {
   type: VehicleType;
   width: number;
   length: number;
+  mission?: { type: 'PATROL' | 'RESPONSE', targetId: string | null } | null;
+  isBrokenDown?: boolean;
 }
 
 export interface TrafficStats {
@@ -42,7 +45,19 @@ export interface TrafficStats {
   avgSpeed: number;
   congestionLevel: number; // 0-100
   carbonEmission: number; // Simulated kg
+  incidents: number;
 }
+
+export interface Incident {
+  id: string;
+  type: 'BREAKDOWN' | 'ACCIDENT' | 'CONSTRUCTION';
+  location: Coordinates;
+  description: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
+  timestamp: number;
+  blocksSegmentId?: string; // e.g., "INT-0-0_INT-1-0"
+}
+
 
 export interface SimulationConfig {
   spawnRate: number; // Cars per second
@@ -58,4 +73,23 @@ export interface GeminiAnalysis {
     newGreenDuration: number;
     reason: string;
   }[];
+}
+
+export interface GeminiIncidentAnalysis {
+    timestamp: number;
+    assessment: string;
+    recommended_action: string;
+}
+
+export interface GroundingChunk {
+  web?: {
+    uri: string;
+    title: string;
+  };
+}
+
+export interface RealWorldIntel {
+  timestamp: number;
+  intel: string;
+  sources: GroundingChunk[];
 }

@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { SimulationCanvas } from './SimulationCanvas';
-import { TrafficStats, Intersection, Car } from '../types';
-import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
+import { TrafficStats, Intersection, Car, Incident } from '../types';
+import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon, CpuChipIcon } from '@heroicons/react/24/outline';
 
 interface SimulationSectionProps {
   currentCity: string;
@@ -14,9 +13,18 @@ interface SimulationSectionProps {
   setCars: React.Dispatch<React.SetStateAction<Car[]>>;
   onUpdateStats: (total: number, speed: number, queues: Record<string, number>) => void;
   onIntersectionSelect: (id: string) => void;
+  onCarSelect: (id: string) => void;
+  selectedCarId: string | null;
   stats: TrafficStats;
   viewMode: 'GRID' | 'SATELLITE';
   setViewMode: (mode: 'GRID' | 'SATELLITE') => void;
+  cvModeActive: boolean;
+  setCvModeActive: (active: boolean) => void;
+  recentlyUpdatedJunctions: Set<string>;
+  incidents: Incident[];
+  onIncidentSelect: (id: string) => void;
+  selectedIncidentId: string | null;
+  closedRoads: Set<string>;
 }
 
 export const SimulationSection: React.FC<SimulationSectionProps> = ({
@@ -29,12 +37,24 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
   setCars,
   onUpdateStats,
   onIntersectionSelect,
+  onCarSelect,
+  selectedCarId,
   stats,
   viewMode,
-  setViewMode
+  setViewMode,
+  cvModeActive,
+  setCvModeActive,
+  recentlyUpdatedJunctions,
+  incidents,
+  onIncidentSelect,
+  selectedIncidentId,
+  closedRoads,
 }) => {
   return (
-    <main className="flex-1 relative flex flex-col min-w-0 bg-surfaceHighlight/30 rounded-2xl border border-white/5 p-1.5 backdrop-blur-sm overflow-hidden">
+    <main className={`
+      absolute inset-0 flex flex-col min-w-0 bg-surfaceHighlight/30 rounded-2xl border p-1.5 backdrop-blur-sm overflow-hidden transition-all duration-300
+      ${cvModeActive ? 'border-green-500/50 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'border-white/5'}
+    `}>
         
         {/* Inner Container for the Monitor Look */}
         <div className="flex-1 flex flex-col bg-background/50 rounded-xl border border-white/5 relative overflow-hidden">
@@ -63,6 +83,13 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                      </button>
                      <div className="w-px h-4 bg-white/10 mx-1"></div>
                      <button
+                        onClick={() => setCvModeActive(!cvModeActive)}
+                        className={`text-gray-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/10 ${cvModeActive ? 'bg-green-500/10 !text-green-400' : ''}`}
+                        title="Toggle CV Analysis Overlay"
+                     >
+                        <CpuChipIcon className="w-4 h-4" />
+                     </button>
+                     <button
                         onClick={() => setViewMode(viewMode === 'GRID' ? 'SATELLITE' : 'GRID')}
                         className="text-gray-400 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/10"
                         title={`Switch to ${viewMode === 'GRID' ? 'Satellite' : 'Grid'} View`}
@@ -83,7 +110,7 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                    
                    {/* HUD Elements */}
                    <div className="absolute top-4 left-4 text-[10px] font-mono text-accent/50 pointer-events-none z-20">
-                       CAM-01 [ACTIVE]
+                       CAM-01 [{cvModeActive ? 'CV-MODE' : 'ACTIVE'}]
                    </div>
                    <div className="absolute top-4 right-4 text-[10px] font-mono text-accent/50 pointer-events-none z-20">
                        {isRunning ? 'REC ●' : 'PAUSED'}
@@ -109,7 +136,15 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                           onUpdateStats={onUpdateStats}
                           isRunning={isRunning}
                           onIntersectionSelect={onIntersectionSelect}
+                          onCarSelect={onCarSelect}
+                          selectedCarId={selectedCarId}
                           scenarioKey={currentCity}
+                          cvModeActive={cvModeActive}
+                          recentlyUpdatedJunctions={recentlyUpdatedJunctions}
+                          incidents={incidents}
+                          onIncidentSelect={onIncidentSelect}
+                          selectedIncidentId={selectedIncidentId}
+                          closedRoads={closedRoads}
                       />
                    </div>
                    

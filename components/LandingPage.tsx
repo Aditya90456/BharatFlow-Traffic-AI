@@ -22,47 +22,6 @@ const FeatureCard: React.FC<{ icon: React.FC<any>, title: string, description: s
 
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  const startCamera = async () => {
-    setCameraError(null);
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-            streamRef.current = stream;
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
-            setIsCameraActive(true);
-        } catch (err) {
-            console.error("Error accessing camera:", err);
-            setCameraError("Camera access denied. Please check your browser permissions.");
-            setIsCameraActive(false);
-        }
-    } else {
-        setCameraError("Camera access is not supported by your browser.");
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    streamRef.current = null;
-    setIsCameraActive(false);
-  };
-
-  useEffect(() => {
-    return () => {
-        if (streamRef.current) {
-            stopCamera();
-        }
-    };
-  }, []);
-
   return (
     <div className="bg-background text-white font-sans overflow-x-hidden selection:bg-accent selection:text-black">
       
@@ -92,11 +51,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
              </div>
             
             <h2 className="text-5xl md:text-7xl font-bold font-tech tracking-tight leading-[1.05]">
-              The Operating System for <span className="text-transparent bg-clip-text bg-gradient-to-r from-saffron via-white to-green-500">Indian Roads</span>
+              India's First AI-Powered <span className="text-transparent bg-clip-text bg-gradient-to-r from-saffron via-white to-green-500">Traffic Digital Twin</span>
             </h2>
             
             <p className="text-lg text-gray-400 max-w-lg leading-relaxed border-l-2 border-accent pl-6">
-              BharatFlow leverages <strong className="text-white">Gemini 2.5 generative AI</strong> to optimize traffic in real-time, reducing congestion and emissions in our nation's most complex urban grids.
+               A next-generation command center featuring a real-time LHT physics simulation, managed by Gemini 2.5 AI to optimize traffic flow for India's Smart Cities.
             </p>
 
             <div className="flex flex-wrap gap-4 pt-4">
@@ -104,7 +63,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 onClick={() => onNavigate('DASHBOARD')}
                 className="px-8 py-4 bg-accent text-black font-bold font-tech text-lg rounded-lg hover:bg-cyan-300 transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_40px_rgba(6,182,212,0.5)] flex items-center gap-3 group translate-y-0 hover:-translate-y-1"
               >
-                <span>Initialize Dashboard</span>
+                <span>Launch Simulation</span>
                 <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
@@ -180,84 +139,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 step="01" 
                 icon={ServerStackIcon} 
                 title="SENSE: The Digital Twin" 
-                description="We create a high-fidelity digital replica of your city's road network, processing thousands of data points per second from virtual sensors to understand the real-time traffic pulse."
+                description="We create a high-fidelity, real-time physics simulation of your city's road network, processing thousands of data points per second to understand the live traffic pulse."
               />
               <FeatureCard 
                 step="02" 
                 icon={SparklesIcon} 
                 title="ANALYZE: The Gemini Core" 
-                description="Our powerful Gemini 2.5 AI model analyzes the complete traffic snapshot, identifying current and potential bottlenecks with superhuman speed and accuracy."
+                description="Our powerful Gemini 2.5 AI model analyzes the complete traffic snapshot, identifying current bottlenecks and suggesting optimal signal timings with superhuman speed."
               />
               <FeatureCard 
                 step="03" 
                 icon={CpuChipIcon} 
-                title="ACT: Edge Optimization" 
-                description="Optimized signal timings are securely relayed to the traffic grid. Changes are made in milliseconds, creating a responsive system that adapts faster than traffic can build."
+                title="ACT: Grid Optimization" 
+                description="AI-recommended signal timings are securely relayed to the traffic grid. Changes are made in milliseconds, creating a responsive system that adapts faster than traffic can build."
               />
-            </div>
-        </div>
-      </section>
-
-      {/* --- LIVE AI DEMO --- */}
-      <section className="py-24 relative z-10 bg-surface border-y border-white/5">
-        <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-                <h2 className="text-4xl md:text-5xl font-bold font-tech mb-4">See The AI In Action</h2>
-                <p className="text-lg text-gray-400">
-                    Activate your camera for a live demonstration of our core object recognition technology. Your video is processed locally on your device and is never stored or transmitted.
-                </p>
-            </div>
-            
-            <div className="max-w-4xl mx-auto">
-                <div className="aspect-video bg-black rounded-2xl border border-white/10 shadow-2xl relative flex items-center justify-center p-2 overflow-hidden glass">
-                    <video 
-                        ref={videoRef} autoPlay playsInline muted
-                        className={`w-full h-full object-cover rounded-lg transition-opacity duration-500 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
-                    />
-
-                    {!isCameraActive && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 z-10">
-                            {cameraError ? (
-                                <div className="text-red-400 font-mono text-sm space-y-2">
-                                    <p>ERROR: {cameraError}</p>
-                                    <p>Please enable camera permissions in your browser settings and refresh.</p>
-                                </div>
-                            ) : (
-                                <button 
-                                    onClick={startCamera}
-                                    className="px-8 py-4 bg-accent text-black font-bold font-tech text-lg rounded-lg hover:bg-cyan-300 transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_40px_rgba(6,182,212,0.5)] flex items-center gap-3 group translate-y-0 hover:-translate-y-1"
-                                >
-                                    <CameraIcon className="w-6 h-6" />
-                                    <span>Activate Camera Feed</span>
-                                </button>
-                            )}
-                        </div>
-                    )}
-                    
-                    {isCameraActive && (
-                        <div className="absolute inset-0 pointer-events-none z-20 animate-in fade-in duration-500">
-                            <div className="absolute w-1/3 h-1/4 top-[20%] left-[15%] border-2 border-accent rounded animate-pulse-glow">
-                                <span className="absolute -top-5 left-0 bg-accent text-black text-[10px] font-mono px-1.5 py-0.5 rounded">VEHICLE [CAR] 98%</span>
-                            </div>
-                            <div className="absolute w-1/4 h-1/3 top-[50%] left-[60%] border-2 border-saffron rounded animate-pulse-glow" style={{ animationDelay: '0.5s' }}>
-                                <span className="absolute -top-5 left-0 bg-saffron text-black text-[10px] font-mono px-1.5 py-0.5 rounded">VEHICLE [AUTO] 91%</span>
-                            </div>
-                            <div className="absolute top-4 left-4 text-xs font-mono text-green-400 bg-black/50 px-2 py-1 rounded">ANALYZING...</div>
-                            <button 
-                                onClick={stopCamera}
-                                className="absolute bottom-4 right-4 px-4 py-2 bg-red-600/80 text-white text-xs font-bold rounded hover:bg-red-500 transition-colors pointer-events-auto"
-                            >
-                                Deactivate
-                            </button>
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
       </section>
 
       {/* --- FINAL CTA --- */}
-      <section className="py-24 relative z-10">
+      <section className="py-24 relative z-10 bg-surface border-y border-white/5">
         <div className="max-w-4xl mx-auto px-6 text-center">
             <ShieldCheckIcon className="w-16 h-16 text-accent mx-auto mb-6 opacity-50" />
             <h2 className="text-4xl md:text-5xl font-bold font-tech mb-6">Take Command of The Grid</h2>

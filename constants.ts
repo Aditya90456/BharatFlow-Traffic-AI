@@ -1,6 +1,7 @@
 
 
-export const GRID_SIZE = 3; // Mini grid (3x3)
+
+export const GRID_SIZE = 2; // Mini grid (2x2)
 export const ROAD_WIDTH = 70; // Wider roads for detail
 export const BLOCK_SIZE = 240; // Larger blocks to show city details
 export const CAR_SIZE = 14;
@@ -56,173 +57,41 @@ export const CITY_COORDINATES: Record<string, { lat: number, lng: number }> = {
 
 export const CITY_CONFIGS: Record<string, string[]> = {
   // --- Metros ---
-  "Bangalore": [
-    "Silk Board", "Hebbal Flyover", "KR Puram",
-    "Sony Signal", "Dairy Circle", "Tin Factory",
-    "Madiwala", "Richmond Circle", "Indiranagar"
-  ],
-  "Mumbai": [
-    "Teen Hath Naka", "Dadar TT", "Sion Circle",
-    "JVLR Junction", "Andheri West", "Bandra Node",
-    "Worli Naka", "Chembur Naka", "Haji Ali"
-  ],
-  "Delhi": [
-    "ITO Junction", "AIIMS Loop", "Dhaula Kuan",
-    "Ashram Chowk", "Peeragarhi", "Kashmere Gate",
-    "Lajpat Nagar", "Rajiv Chowk", "Moolchand"
-  ],
-  "Chennai": [
-    "Kathipara", "Teynampet", "Madhya Kailash",
-    "Tidel Park", "Anna Nagar", "Koyambedu",
-    "Chromepet", "Guindy", "Velachery"
-  ],
-  "Hyderabad": [
-    "Cyber Towers", "Mindspace", "Gachibowli",
-    "Panjagutta", "Paradise", "Jubilee Post",
-    "Kukatpally", "LB Nagar", "Charminar"
-  ],
-  "Kolkata": [
-    "Park Street", "Esplanade", "Gariahat", 
-    "Shyambazar", "Howrah Bridge", "Ultadanga", 
-    "Science City", "Jadavpur", "New Town"
-  ],
+  "Bangalore": [ "Silk Board", "Hebbal Flyover", "KR Puram", "Sony Signal" ],
+  "Mumbai": [ "Teen Hath Naka", "Dadar TT", "Sion Circle", "JVLR Junction" ],
+  "Delhi": [ "ITO Junction", "AIIMS Loop", "Dhaula Kuan", "Ashram Chowk" ],
+  "Chennai": [ "Kathipara", "Teynampet", "Madhya Kailash", "Tidel Park" ],
+  "Hyderabad": [ "Cyber Towers", "Mindspace", "Gachibowli", "Panjagutta" ],
+  "Kolkata": [ "Park Street", "Esplanade", "Gariahat", "Shyambazar" ],
 
   // --- Tier 2 Cities ---
-  "Pune": [
-    "Univ. Circle", "Swargate", "Deccan Gym", 
-    "Hinjewadi", "Magarpatta", "Yerwada", 
-    "Bremen Chowk", "Chandni Chowk", "Koregaon Park"
-  ],
-  "Ahmedabad": [
-    "SG Highway", "Kalupur", "Nehrunagar", 
-    "Shivranjani", "IIM Road", "Income Tax", 
-    "Paldi", "Gita Mandir", "Thaltej"
-  ],
-  "Jaipur": [
-    "Ajmeri Gate", "MI Road", "Rambagh", 
-    "Statue Circle", "Sindhi Camp", "Gopalpura", 
-    "Tonk Road", "Raja Park", "Vaishali"
-  ],
-  "Lucknow": [
-    "Hazratganj", "Charbagh", "Gomti Nagar", 
-    "Polytechnic", "Munshipulia", "Alambagh", 
-    "Aminabad", "Chowk", "Kapoorthala"
-  ],
-  "Chandigarh": [
-    "Sector 17", "Tribune Chowk", "Aroma Light", 
-    "Housing Board", "Matka Chowk", "Transport Lt", 
-    "Piccadily", "Zirakpur", "Mohali"
-  ],
-  "Indore": [
-    "Rajwada", "Palasia", "Vijay Nagar", 
-    "56 Dukan", "Bhanwarkuan", "LIG Square", 
-    "Geeta Bhawan", "Mhow Naka", "Regal Square"
-  ],
-  "Kochi": [
-    "Edappally", "Vytilla", "MG Road", 
-    "Marine Drive", "Kaloor", "Palarivattom", 
-    "Kakkanad", "Fort Kochi", "Thevara"
-  ],
-  "Surat": [
-    "Ring Road", "Athwa Lines", "Majura Gate", 
-    "Udhna", "Parle Point", "Adajan", 
-    "Varachha", "Dumas Road", "Piplod"
-  ],
-  "Nagpur": [
-    "Sitabuldi", "Zero Mile", "Sadar", 
-    "Dharampeth", "Medical Sq", "Variety Sq", 
-    "Shankar Nagar", "RBI Square", "Mate Square"
-  ],
-  "Visakhapatnam": [
-    "Jagadamba", "RK Beach", "Siripuram", 
-    "Gajuwaka", "NAD Junction", "Maddilapalem", 
-    "RTC Complex", "Satyam", "Gurudwara"
-  ],
-  "Patna": [
-    "Dak Bunglow", "Gandhi Maidan", "Boring Road", 
-    "Bailey Road", "Frazer Road", "Kankarbagh", 
-    "Rajendra Ngr", "Saguna More", "Hartali Mor"
-  ],
-  "Bhopal": [
-    "MP Nagar", "New Market", "Board Office", 
-    "Jyoti Talkies", "Lal Ghati", "Habibganj", 
-    "Bittan Market", "VIP Road", "10 Number"
-  ],
-  "Ludhiana": [
-    "Clock Tower", "Chaura Bazar", "Ferozepur Rd", 
-    "Gill Road", "Model Town", "Aarti Chowk", 
-    "Samrala Chowk", "Jagraon Br", "PAU"
-  ],
-  "Agra": [
-    "MG Road", "Sadar Bazar", "Bhagwan Tk", 
-    "Sikandra", "Taj Ganj", "Sanjay Place", 
-    "Khandari", "Water Works", "Bijli Ghar"
-  ],
-  "Vadodara": [
-    "Alkapuri", "Race Course", "Mandvi", 
-    "Genda Circle", "Chakli Circle", "Fatehgunj", 
-    "Akota", "Karelibaug", "Old Padra"
-  ],
-  "Nashik": [
-    "Dwarka Circle", "CBS", "College Road", 
-    "Gangapur Rd", "Nashik Road", "Satpur", 
-    "Indira Nagar", "Panchvati", "Mumbai Naka"
-  ],
-  "Coimbatore": [
-    "Gandhipuram", "Ukkadam", "RS Puram", 
-    "Avinashi Rd", "Lakshmi Mills", "Hope College", 
-    "Singanallur", "Cross Cut", "Saibaba Col"
-  ],
-  "Kanpur": [
-    "Meston Road", "Naveen Mkt", "Mall Road", 
-    "Ghantaghar", "Rawatpur", "Kakadeo", 
-    "Govind Nagar", "Parade", "Gwaltoli"
-  ],
-  "Varanasi": [
-    "Godowlia", "Lanka", "Maidagin", 
-    "Cantt Stn", "Sigra", "Rath Yatra", 
-    "Girjaghar", "Ravindrapuri", "Durgakund"
-  ],
+  "Pune": [ "Univ. Circle", "Swargate", "Deccan Gym", "Hinjewadi" ],
+  "Ahmedabad": [ "SG Highway", "Kalupur", "Nehrunagar", "Shivranjani" ],
+  "Jaipur": [ "Ajmeri Gate", "MI Road", "Rambagh", "Statue Circle" ],
+  "Lucknow": [ "Hazratganj", "Charbagh", "Gomti Nagar", "Polytechnic" ],
+  "Chandigarh": [ "Sector 17", "Tribune Chowk", "Aroma Light", "Housing Board" ],
+  "Indore": [ "Rajwada", "Palasia", "Vijay Nagar", "56 Dukan" ],
+  "Kochi": [ "Edappally", "Vytilla", "MG Road", "Marine Drive" ],
+  "Surat": [ "Ring Road", "Athwa Lines", "Majura Gate", "Udhna" ],
+  "Nagpur": [ "Sitabuldi", "Zero Mile", "Sadar", "Dharampeth" ],
+  "Visakhapatnam": [ "Jagadamba", "RK Beach", "Siripuram", "Gajuwaka" ],
+  "Patna": [ "Dak Bunglow", "Gandhi Maidan", "Boring Road", "Bailey Road" ],
+  "Bhopal": [ "MP Nagar", "New Market", "Board Office", "Jyoti Talkies" ],
+  "Ludhiana": [ "Clock Tower", "Chaura Bazar", "Ferozepur Rd", "Gill Road" ],
+  "Agra": [ "MG Road", "Sadar Bazar", "Bhagwan Tk", "Sikandra" ],
+  "Vadodara": [ "Alkapuri", "Race Course", "Mandvi", "Genda Circle" ],
+  "Nashik": [ "Dwarka Circle", "CBS", "College Road", "Gangapur Rd" ],
+  "Coimbatore": [ "Gandhipuram", "Ukkadam", "RS Puram", "Avinashi Rd" ],
+  "Kanpur": [ "Meston Road", "Naveen Mkt", "Mall Road", "Ghantaghar" ],
+  "Varanasi": [ "Godowlia", "Lanka", "Maidagin", "Cantt Stn" ],
 
   // --- Mini Towns / Tourist Hubs ---
-  "Goa (Panjim)": [
-    "MG Road", "Miramar", "Patto", 
-    "Panjim Church", "Bambolim", "Dona Paula", 
-    "Porvorim", "Mapusa", "Calangute"
-  ],
-  "Shimla": [
-    "The Mall", "Victory Tunnel", "Lakkar Bazar", 
-    "Sanjauli", "Chotta Shimla", "Lift Road", 
-    "Cart Road", "Boileauganj", "Summer Hill"
-  ],
-  "Manali": [
-    "Mall Road", "Aleo", "Old Manali", 
-    "Vashisht", "Hadimba Rd", "Circuit House", 
-    "Rangri", "Prini", "Jagatsukh"
-  ],
-  "Ooty": [
-    "Charring Cross", "Commercial Rd", "Botanical Gdn", 
-    "Rose Garden", "Boat House", "Fingerpost", 
-    "Lovedale", "Coonoor Rd", "Dodabetta"
-  ],
-  "Pondicherry": [
-    "White Town", "Promenade", "Mission St", 
-    "Auroville Rd", "MG Road", "Bus Stand", 
-    "Reddiarpalayam", "Lawspet", "Kalapet"
-  ],
-  "Rishikesh": [
-    "Laxman Jhula", "Ram Jhula", "Tapovan", 
-    "Triveni Ghat", "Natraj Chowk", "AIIMS Rd", 
-    "Shivpuri", "Muni Ki Reti", "Swarg Ashram"
-  ],
-  "Udaipur": [
-    "Chetak Circle", "Delhi Gate", "Fateh Sagar", 
-    "Hiran Magri", "Surajpole", "Udiapole", 
-    "Sukhadia", "Saheliyon", "City Palace"
-  ],
-  "Srinagar": [
-    "Lal Chowk", "Dal Gate", "Residency Rd",
-    "Boulevard Rd", "Jahangir Chowk", "Rajbagh",
-    "Sonwar", "Hyderpora", "Nowhatta"
-  ]
+  "Goa (Panjim)": [ "MG Road", "Miramar", "Patto", "Panjim Church" ],
+  "Shimla": [ "The Mall", "Victory Tunnel", "Lakkar Bazar", "Sanjauli" ],
+  "Manali": [ "Mall Road", "Aleo", "Old Manali", "Vashisht" ],
+  "Ooty": [ "Charring Cross", "Commercial Rd", "Botanical Gdn", "Rose Garden" ],
+  "Pondicherry": [ "White Town", "Promenade", "Mission St", "Auroville Rd" ],
+  "Rishikesh": [ "Laxman Jhula", "Ram Jhula", "Tapovan", "Triveni Ghat" ],
+  "Udaipur": [ "Chetak Circle", "Delhi Gate", "Fateh Sagar", "Hiran Magri" ],
+  "Srinagar": [ "Lal Chowk", "Dal Gate", "Residency Rd", "Boulevard Rd" ]
 };
