@@ -629,7 +629,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       let shouldYield = false;
       let maxSpeed = car.type === 'BUS' ? MAX_SPEED * 0.7 : car.type === 'AUTO' ? MAX_SPEED * 0.85 : MAX_SPEED;
 
-      if (car.type === 'POLICE' && mission?.type === 'RESPONSE') {
+      if (car.type === 'POLICE' && mission && mission.type === 'RESPONSE') {
         isRedLight = false;
         maxSpeed = MAX_SPEED * 1.5;
       } else if (car.type !== 'POLICE') {
@@ -660,7 +660,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         const iX = (intersection.x + 0.5) * BLOCK_SIZE, iY = (intersection.y + 0.5) * BLOCK_SIZE;
         if (Math.abs(x - iX) < car.speed * 2 && Math.abs(y - iY) < car.speed * 2) {
             targetIntersectionId = null;
-            if (mission?.type === 'RESPONSE' && mission.targetId) {
+            if (mission && mission.type === 'RESPONSE' && mission.targetId) {
                 const targetInt = updatedIntersections.find(i => i.id === mission.targetId);
                 if (targetInt) {
                     if (targetInt.x > intersection.x && dir !== 'E') dir = 'E';
@@ -687,12 +687,14 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
                 let availableOptions: ('straight'|'left'|'right')[] = ['straight', 'left', 'right'];
                 
                 availableOptions = availableOptions.filter(turn => {
+                    // FIX: Removed incorrect type cast. `turn` is already of the correct type.
                     const nextDir = possibleTurns[dir][turn];
                     const nextCoords = getNextIntersectionCoords(intersection, nextDir);
                     return nextCoords.x >= 0 && nextCoords.x < GRID_SIZE && nextCoords.y >= 0 && nextCoords.y < GRID_SIZE;
                 });
 
                 availableOptions = availableOptions.filter(turn => {
+                    // FIX: Removed incorrect type cast. `turn` is already of the correct type.
                     const nextDir = possibleTurns[dir][turn];
                     const nextCoords = getNextIntersectionCoords(intersection, nextDir);
                     const nextIntId = `INT-${nextCoords.x}-${nextCoords.y}`;
@@ -702,13 +704,14 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
                 
                 if (availableOptions.length > 0) {
                     const chosenTurn = availableOptions[Math.floor(Math.random() * availableOptions.length)];
+                    // FIX: Removed incorrect type cast. `chosenTurn` is already of the correct type.
                     dir = possibleTurns[dir][chosenTurn];
                 } else {
                     if (dir === 'N') dir = 'S'; else if (dir === 'S') dir = 'N';
                     else if (dir === 'E') dir = 'W'; else if (dir === 'W') dir = 'E';
                 }
             }
-            if (mission?.type === 'RESPONSE' && mission.targetId === intersection.id) {
+            if (mission && mission.type === 'RESPONSE' && mission.targetId === intersection.id) {
               mission = { type: 'PATROL', targetId: null };
             }
         }
