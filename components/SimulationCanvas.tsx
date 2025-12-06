@@ -699,7 +699,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
            if (dir === 'E') return dX > 0 && dX < 40 && Math.abs(dY) < car.width;
            if (dir === 'W') return dX < 0 && dX > -40 && Math.abs(dY) < car.width;
            return false;
-        });
+        }) ?? null;
 
         if (isApproachingRed || carInFront) {
           state = 'STOPPED';
