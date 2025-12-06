@@ -21,9 +21,13 @@ const DetailItem: React.FC<{ icon: React.FC<any>, label: string, value: string |
 export const VehicleDetails: React.FC<VehicleDetailsProps> = ({ car, intersections }) => {
   const getMissionText = () => {
     if (car.type !== 'POLICE' || !car.mission) return 'N/A';
-    if (car.mission.type === 'PATROL') return 'Patrolling Grid';
-    if (car.mission.type === 'RESPONSE' && car.mission.targetId) {
-        const target = intersections.find(i => i.id === car.mission.targetId);
+
+    const { mission } = car;
+
+    if (mission.type === 'PATROL') return 'Patrolling Grid';
+    
+    if (mission.type === 'RESPONSE' && mission.targetId) {
+        const target = intersections.find(i => i.id === mission.targetId);
         return `Responding to ${target ? target.label : 'incident'}`;
     }
     return 'Standby';

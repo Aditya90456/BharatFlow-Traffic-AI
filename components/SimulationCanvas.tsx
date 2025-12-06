@@ -660,7 +660,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         const iX = (intersection.x + 0.5) * BLOCK_SIZE, iY = (intersection.y + 0.5) * BLOCK_SIZE;
         if (Math.abs(x - iX) < car.speed * 2 && Math.abs(y - iY) < car.speed * 2) {
             targetIntersectionId = null;
-            if (car.mission?.type === 'RESPONSE' && car.mission.targetId) {
+            if (mission?.type === 'RESPONSE' && mission.targetId) {
                 const targetInt = updatedIntersections.find(i => i.id === mission.targetId);
                 if (targetInt) {
                     if (targetInt.x > intersection.x && dir !== 'E') dir = 'E';
@@ -669,7 +669,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
                     else if (targetInt.y < intersection.y && dir !== 'N') dir = 'N';
                 }
             } else {
-                const possibleTurns = {
+                const possibleTurns: Record<'N'|'S'|'E'|'W', Record<'straight'|'left'|'right', 'N'|'S'|'E'|'W'>> = {
                     'N': { 'straight': 'N', 'left': 'W', 'right': 'E' },
                     'S': { 'straight': 'S', 'left': 'E', 'right': 'W' },
                     'E': { 'straight': 'E', 'left': 'N', 'right': 'S' },
@@ -684,7 +684,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
                     return {x: -1, y: -1};
                 };
                 
-                let availableOptions = ['straight', 'left', 'right'];
+                let availableOptions: ('straight'|'left'|'right')[] = ['straight', 'left', 'right'];
                 
                 availableOptions = availableOptions.filter(turn => {
                     const nextDir = possibleTurns[dir][turn];
@@ -708,7 +708,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
                     else if (dir === 'E') dir = 'W'; else if (dir === 'W') dir = 'E';
                 }
             }
-            if (car.mission?.type === 'RESPONSE' && car.mission.targetId === intersection.id) {
+            if (mission?.type === 'RESPONSE' && mission.targetId === intersection.id) {
               mission = { type: 'PATROL', targetId: null };
             }
         }
