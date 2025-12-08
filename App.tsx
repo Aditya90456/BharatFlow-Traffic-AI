@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LandingPage } from './components/LandingPage';
-import { FeaturesPage, LiveMapPage, PublicDataPage, ApiDocsPage, AiFeaturesPage } from './components/PublicPages';
+import { FeaturesPage, LiveMapPage, PublicDataPage, ApiDocsPage, AiFeaturesPage, RealtimeAiPage, JunctionsAiPage, MlDesignPage } from './components/PublicPages';
 import { SimulationSection } from './components/SimulationSection';
 import { CameraFeed } from './components/CameraFeed';
 import { StatsCard } from './components/StatsCard';
 import { VehicleDetails } from './components/VehicleDetails';
 import { IntersectionDetails, IntelFeed, IncidentDetails, OverviewPanel } from './components/SidePanels';
-import { analyzeTraffic, analyzeIncident, getRealWorldIntel } from './services/geminiService';
-import { Incident, Intersection, Car, LightState, TrafficStats, GeminiAnalysis, GeminiIncidentAnalysis, RealWorldIntel, Road, SearchResult } from './types';
-import { GRID_SIZE, INITIAL_GREEN_DURATION, CITY_CONFIGS, CITY_COORDINATES, BLOCK_SIZE, ROAD_NAMES } from './constants';
+import { ResponsibleAiModal } from './components/ResponsibleAiModal';
+import { DataHub } from './components/DataHub';
+import { analyzeTraffic, analyzeIncident, getRealWorldIntel, interpretSearchQuery } from './services/geminiService';
+import { Incident, Intersection, Car, LightState, TrafficStats, GeminiAnalysis, GeminiIncidentAnalysis, RealWorldIntel, Road, SearchResult, CongestedJunctionInfo } from './types';
+import { GRID_SIZE, INITIAL_GREEN_DURATION, CITY_CONFIGS, CITY_COORDINATES, BLOCK_SIZE, ROAD_NAMES, MAX_SPEED } from './constants';
 import { 
   ArrowLeftOnRectangleIcon, ChartPieIcon, AdjustmentsHorizontalIcon, TruckIcon, SparklesIcon, VideoCameraIcon, GlobeAltIcon,
-  ClockIcon, BoltIcon, CloudIcon, SignalIcon, ExclamationTriangleIcon
+  ClockIcon, BoltIcon, CloudIcon, SignalIcon, ExclamationTriangleIcon, CircleStackIcon
 } from '@heroicons/react/24/outline';
 
-type ViewState = 'LANDING' | 'DASHBOARD' | 'FEATURES' | 'PUBLIC_MAP' | 'PUBLIC_DATA' | 'API_DOCS' | 'AI_FEATURES';
-type ActiveTab = 'OVERVIEW' | 'JUNCTION' | 'UNIT' | 'INTEL' | 'CCTV' | 'INCIDENT';
+type ViewState = 'LANDING' | 'DASHBOARD' | 'FEATURES' | 'PUBLIC_MAP' | 'PUBLIC_DATA' | 'API_DOCS' | 'AI_FEATURES' | 'REALTIME_AI' | 'JUNCTIONS_AI' | 'ML_DESIGN';
+type ActiveTab = 'OVERVIEW' | 'JUNCTION' | 'UNIT' | 'INTEL' | 'CCTV' | 'INCIDENT' | 'DATA_HUB';
 
 // Boot Sequence Component
 const SystemBoot: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
@@ -151,170 +153,185 @@ const App: React.FC = () => {
   
   const [isIntelLoading, setIsIntelLoading] = useState(false);
   const [realWorldIntel, setRealWorldIntel] = useState<RealWorldIntel | null>(null);
+  const [intelIncidentMessage, setIntelIncidentMessage] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isAiSearching, setIsAiSearching] = useState(false);
+  const [highlightedVehicleIds, setHighlightedVehicleIds] = useState<Set<string> | null>(null);
+  const [highlightedIncidentIds, setHighlightedIncidentIds] = useState<Set<string> | null>(null);
+
+  const [isResponsibleAiModalOpen, setIsResponsibleAiModalOpen] = useState(false);
+  const [lastAnalysisInput, setLastAnalysisInput] = useState<CongestedJunctionInfo[] | null>(null);
 
   const analysisCooldownRef = useRef(false);
-  const breakdownIntervalRef = useRef<number | null>(null);
-  const carsRef = useRef(cars);
 
-  useEffect(() => {
-    carsRef.current = cars;
-  }, [cars]);
+  const handleBootComplete = () => {
+    setIsBooting(false);
+    setViewState('DASHBOARD');
+  };
+
+  const handleNavigate = (page: string) => {
+    if (page === 'DASHBOARD' && viewState !== 'DASHBOARD') {
+      setIsBooting(true);
+    } else {
+      setViewState(page as ViewState);
+    }
+  };
+
+  const changeCity = useCallback((newCity: string) => {
+    if (CITY_CONFIGS[newCity]) {
+      setCurrentCity(newCity);
+      setIntersections(generateIntersections(CITY_CONFIGS[newCity]));
+      setRoads(generateRoads(newCity));
+      setCars([]);
+      setIncidents([]);
+      setActiveTab('OVERVIEW');
+      setSelectedCarId(null);
+      setSelectedIntersectionId(null);
+      setSelectedIncidentId(null);
+      setGeminiAnalysis(null);
+      setRealWorldIntel(null);
+      setIntelIncidentMessage(null);
+      setHighlightedVehicleIds(null);
+      setHighlightedIncidentIds(null);
+    }
+  }, []);
   
-  const handleCarBreakdown = useCallback((brokenCar: Car) => {
-      setIncidents(prevIncidents => {
-        if (prevIncidents.some(inc => inc.id === `brk-${brokenCar.id}`)) {
-          return prevIncidents;
-        }
-
-        const gridX = Math.floor(brokenCar.x / BLOCK_SIZE);
-        const gridY = Math.floor(brokenCar.y / BLOCK_SIZE);
-        let segmentId: string | undefined = undefined;
-
-        let int1Id: string, int2Id: string;
-        if (brokenCar.dir === 'E' || brokenCar.dir === 'W') {
-            int1Id = `INT-${gridX}-${gridY}`;
-            int2Id = `INT-${gridX + (brokenCar.dir === 'E' ? 1 : -1)}-${gridY}`;
-        } else { // N or S
-            int1Id = `INT-${gridX}-${gridY}`;
-            int2Id = `INT-${gridX}-${gridY + (brokenCar.dir === 'S' ? 1 : -1)}`;
-        }
-        
-        const validInt1 = intersections.find(i => i.id === int1Id);
-        const validInt2 = intersections.find(i => i.id === int2Id);
-
-        if (validInt1 && validInt2) {
-          segmentId = [int1Id, int2Id].sort().join('_');
-        }
-
-        const newIncident: Incident = {
-            id: `brk-${brokenCar.id}`,
-            type: 'BREAKDOWN',
-            location: { x: brokenCar.x, y: brokenCar.y },
-            description: `${brokenCar.type} broke down, blocking route.`,
-            severity: 'HIGH',
-            timestamp: Date.now(),
-            blocksSegmentId: segmentId,
-        };
-        return [...prevIncidents, newIncident];
-      });
-
-      setCars(prevCars => prevCars.map(c => 
-          c.id === brokenCar.id ? { ...c, isBrokenDown: true, speed: 0, state: 'STOPPED' } : c
-      ));
-  }, [intersections]);
-
-  const closedRoads = useMemo(() => {
-    return new Set(incidents.map(inc => inc.blocksSegmentId).filter((id): id is string => !!id));
-  }, [incidents]);
-
-  const handleCarBreakdownRef = useRef(handleCarBreakdown);
-  useEffect(() => {
-    handleCarBreakdownRef.current = handleCarBreakdown;
-  }, [handleCarBreakdown]);
-
-  useEffect(() => {
-    if (isRunning && viewState === 'DASHBOARD') {
-      breakdownIntervalRef.current = window.setInterval(() => {
-        const potentialVictims = carsRef.current.filter(c => !c.isBrokenDown && c.type !== 'POLICE');
-        if (potentialVictims.length > 1) {
-          const victim = potentialVictims[Math.floor(Math.random() * potentialVictims.length)];
-          handleCarBreakdownRef.current(victim);
-        }
-      }, 20000);
-    } else if (breakdownIntervalRef.current) {
-      clearInterval(breakdownIntervalRef.current);
-    }
-
-    return () => {
-      if (breakdownIntervalRef.current) clearInterval(breakdownIntervalRef.current);
-    };
-  }, [isRunning, viewState]);
-
-  useEffect(() => {
-    if (isAnalyzing) {
-      analysisCooldownRef.current = true;
-      setTimeout(() => {
-        analysisCooldownRef.current = false;
-      }, 15000);
-    }
-  }, [isAnalyzing]);
-  
-  useEffect(() => {
-    if (!searchQuery) {
-      setSearchResults([]);
-      return;
-    }
-
-    const lowerCaseQuery = searchQuery.toLowerCase();
-
-    // 1. Search Cities (Global)
-    const cityResults: SearchResult[] = Object.keys(CITY_CONFIGS)
-      .filter(city => city.toLowerCase().includes(lowerCaseQuery))
-      .map(city => ({ type: 'CITY', id: city, name: city }));
-
-    // 2. Search Intersections (Current City)
-    const intersectionResults: SearchResult[] = intersections
-      .filter(i => i.label.toLowerCase().includes(lowerCaseQuery))
-      .map(i => ({ type: 'INTERSECTION', id: i.id, name: i.label }));
-
-    // 3. Search Roads (Current City, unique by name)
-    const roadResults: SearchResult[] = roads
-      .filter(r => r.name.toLowerCase().includes(lowerCaseQuery))
-      .map(r => ({ type: 'ROAD', id: r.id, name: r.name }));
-
-    const uniqueRoadResults = Array.from(new Map(roadResults.map(item => [item.name, item])).values());
-
-    setSearchResults([...cityResults, ...intersectionResults, ...uniqueRoadResults]);
-  }, [searchQuery, intersections, roads]);
-
-  const handleUpdateStats = useCallback((totalCars: number, avgSpeed: number, queueMap: Record<string, number>) => {
-    const totalQueued = Object.values(queueMap).reduce((sum, q) => sum + q, 0);
-    const congestion = Math.min(100, Math.round((totalQueued / (totalCars + 1)) * 200 + (totalCars / 100) * 50));
-    
-    setStats(prevStats => ({
-      ...prevStats,
+  const updateStats = useCallback((totalCars: number, avgSpeed: number, queueMap: Record<string, number>) => {
+    const congestion = Math.min(100, Math.round((totalCars / 100) * 80 + (2.5 - avgSpeed) * 10));
+    setStats({
       totalCars,
       avgSpeed,
-      congestionLevel: isNaN(congestion) ? 0 : congestion,
-      carbonEmission: totalCars * 0.12 * (1 + (isNaN(congestion) ? 0 : congestion)/100),
-    }));
+      congestionLevel: Math.max(0, congestion),
+      carbonEmission: totalCars * 0.01 + (2.5 - avgSpeed) * 0.02,
+      incidents: incidents.length,
+    });
     setQueueLengthMap(queueMap);
-  }, []);
+  }, [incidents.length]);
 
-  useEffect(() => {
-    setStats(prev => ({...prev, incidents: incidents.length}));
-  }, [incidents]);
-
-  const handleIntersectionSelect = (id: string) => {
+  const handleIntersectionSelect = useCallback((id: string) => {
     setSelectedIntersectionId(id);
     setSelectedCarId(null);
     setSelectedIncidentId(null);
     setActiveTab('JUNCTION');
-  };
-  
-  const handleCarSelect = (id: string) => {
+    setHighlightedVehicleIds(null);
+    setHighlightedIncidentIds(null);
+  }, []);
+
+  const handleCarSelect = useCallback((id: string) => {
     setSelectedCarId(id);
     setSelectedIntersectionId(null);
     setSelectedIncidentId(null);
     setActiveTab('UNIT');
-  };
-  
-  const handleIncidentSelect = (id: string) => {
-      setSelectedIncidentId(id);
-      setSelectedCarId(null);
-      setSelectedIntersectionId(null);
+    setHighlightedVehicleIds(null);
+    setHighlightedIncidentIds(null);
+  }, []);
+
+  const handleIncidentSelect = useCallback((id: string) => {
+    setSelectedIncidentId(id);
+    setSelectedCarId(null);
+    setActiveTab('INCIDENT');
+    setHighlightedVehicleIds(null);
+    setHighlightedIncidentIds(null);
+  }, []);
+
+  const runGeminiAnalysis = useCallback(async () => {
+    if (analysisCooldownRef.current) return;
+    setIsAnalyzing(true);
+    analysisCooldownRef.current = true;
+
+    const congestedIntersections: CongestedJunctionInfo[] = intersections
+        .map(i => {
+            const nsQueue = (queueLengthMap[`${i.id}_N`] || 0) + (queueLengthMap[`${i.id}_S`] || 0);
+            const ewQueue = (queueLengthMap[`${i.id}_E`] || 0) + (queueLengthMap[`${i.id}_W`] || 0);
+            return { id: i.id, label: i.label, nsQueue, ewQueue, totalQueue: nsQueue + ewQueue };
+        })
+        .filter(i => i.totalQueue > 5)
+        .sort((a, b) => b.totalQueue - a.totalQueue)
+        .map(({ totalQueue, ...rest }) => rest);
+    
+    setLastAnalysisInput(congestedIntersections);
+    const analysis = await analyzeTraffic(congestedIntersections, stats);
+    setGeminiAnalysis(analysis);
+    setIsAnalyzing(false);
+    setTimeout(() => analysisCooldownRef.current = false, 5000);
+  }, [intersections, queueLengthMap, stats]);
+
+  const applyGeminiSuggestions = useCallback(() => {
+    if (!geminiAnalysis) return;
+    const updatedIds = new Set<string>();
+    setIntersections(prev => {
+      return prev.map(intersection => {
+        const change = geminiAnalysis.suggestedChanges.find(c => c.intersectionId === intersection.id);
+        if (change) {
+          updatedIds.add(intersection.id);
+          return { ...intersection, greenDuration: change.newGreenDuration };
+        }
+        return intersection;
+      });
+    });
+    setRecentlyUpdatedJunctions(updatedIds);
+    setTimeout(() => setRecentlyUpdatedJunctions(new Set()), 10000); // Visual effect lasts 10s
+    setGeminiAnalysis(null);
+  }, [geminiAnalysis]);
+
+  const runIncidentAnalysis = useCallback(async (incident: Incident) => {
+      setIsIncidentAnalyzing(true);
       setGeminiIncidentAnalysis(null);
-      setActiveTab('INCIDENT');
-  };
+      const nearbyPolice = cars.filter(c => {
+          if (c.type !== 'POLICE') return false;
+          const dist = Math.hypot(c.x - incident.location.x, c.y - incident.location.y);
+          return dist < BLOCK_SIZE * 2;
+      }).length;
+      const analysis = await analyzeIncident(incident, nearbyPolice);
+      setGeminiIncidentAnalysis(analysis);
+      setIsIncidentAnalyzing(false);
+  }, [cars]);
+  
+  const getIntel = useCallback(async (query: string, useLocation: boolean) => {
+    setIsIntelLoading(true);
+    setRealWorldIntel(null);
+    setIntelIncidentMessage(null);
+
+    let location: { latitude: number; longitude: number } | undefined = undefined;
+    if (useLocation && CITY_COORDINATES[currentCity]) {
+      const cityCoords = CITY_COORDINATES[currentCity];
+      location = { latitude: cityCoords.lat, longitude: cityCoords.lng };
+    }
+    
+    const intel = await getRealWorldIntel(query, currentCity, intersections.map(i => i.label), location);
+    
+    // Check for incident creation directive
+    const incidentMatch = intel.intel.match(/INCIDENT::(.+?)::(ACCIDENT|CONSTRUCTION)::(.+)/);
+    if (incidentMatch) {
+      const [, intersectionLabel, type, description] = incidentMatch;
+      const targetIntersection = intersections.find(i => i.label === intersectionLabel.trim());
+      if (targetIntersection) {
+        const newIncident: Incident = {
+          id: `INC-AI-${Date.now()}`,
+          type: type as 'ACCIDENT' | 'CONSTRUCTION',
+          location: { x: (targetIntersection.x + 0.5) * BLOCK_SIZE, y: (targetIntersection.y + 0.5) * BLOCK_SIZE },
+          description,
+          severity: type === 'ACCIDENT' ? 'HIGH' : 'MEDIUM',
+          timestamp: Date.now(),
+        };
+        setIncidents(prev => [...prev, newIncident]);
+        setIntelIncidentMessage(`AI detected a real-world event and created an incident marker at ${intersectionLabel}.`);
+        // Clean up the intel text for display
+        intel.intel = intel.intel.replace(/INCIDENT::.+/, '').trim();
+      }
+    }
+
+    setRealWorldIntel(intel);
+    setIsIntelLoading(false);
+  }, [currentCity, intersections]);
   
   const handleSearchResultSelect = (result: SearchResult) => {
+    setSearchQuery('');
+    setSearchResults([]);
     if (result.type === 'CITY') {
-      if (result.name !== currentCity) {
-        initializeDashboard(result.name);
-      }
+      changeCity(result.name);
     } else if (result.type === 'INTERSECTION') {
       handleIntersectionSelect(result.id);
     } else if (result.type === 'ROAD') {
@@ -323,301 +340,207 @@ const App: React.FC = () => {
         handleIntersectionSelect(road.intersection1Id);
       }
     }
-    setSearchQuery('');
   };
 
-  const runGeminiAnalysis = async () => {
-    if (analysisCooldownRef.current) return;
-    setIsAnalyzing(true);
-    const analysis = await analyzeTraffic(intersections, stats, queueLengthMap);
-    setGeminiAnalysis(analysis);
-    setIsAnalyzing(false);
-  };
-  
-  const runGeminiIncidentAnalysis = async (incident: Incident) => {
-      if(isIncidentAnalyzing) return;
-      setIsIncidentAnalyzing(true);
-      setGeminiIncidentAnalysis(null);
-      const policeNearby = cars.filter(c => {
-          if (c.type !== 'POLICE') return false;
-          const dist = Math.hypot(c.x - incident.location.x, c.y - incident.location.y);
-          return dist < 4 * BLOCK_SIZE;
-      }).length;
-      const analysis = await analyzeIncident(incident, policeNearby);
-      setGeminiIncidentAnalysis(analysis);
-      setIsIncidentAnalyzing(false);
-  };
-  
-  const runRealWorldIntel = async (query: string, useLocation: boolean) => {
-    setIsIntelLoading(true);
-    setRealWorldIntel(null);
-    let location: { latitude: number; longitude: number } | undefined = undefined;
+  const handleAiSearch = async (query: string) => {
+    setIsAiSearching(true);
+    setHighlightedVehicleIds(null);
+    setHighlightedIncidentIds(null);
 
-    if (useLocation) {
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-        });
-        location = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-      } catch (error) {
-        console.error("Failed to get geolocation:", error);
+    const actions = await interpretSearchQuery(query, intersections, cars, incidents);
+
+    if (actions && actions.length > 0) {
+      const action = actions[0]; // Handle first action
+      if (action.name === 'select_object') {
+        const { type, name_or_id } = action.args;
+        if (type === 'INTERSECTION') {
+          const target = intersections.find(i => i.id === name_or_id || i.label.toLowerCase() === name_or_id.toLowerCase());
+          if (target) handleIntersectionSelect(target.id);
+        }
+      } else if (action.name === 'find_most_congested_junction') {
+          const congestedJunction = intersections
+            .map(i => {
+                const nsQueue = (queueLengthMap[`${i.id}_N`] || 0) + (queueLengthMap[`${i.id}_S`] || 0);
+                const ewQueue = (queueLengthMap[`${i.id}_E`] || 0) + (queueLengthMap[`${i.id}_W`] || 0);
+                return { ...i, totalQueue: nsQueue + ewQueue };
+            })
+            .sort((a, b) => b.totalQueue - a.totalQueue)[0];
+          if(congestedJunction) handleIntersectionSelect(congestedJunction.id);
+
+      } else if (action.name === 'find_all_units_of_type') {
+          const { type } = action.args;
+          const matchingIds = new Set<string>();
+          cars.forEach(car => {
+            if (type === 'BROKEN_DOWN' && car.isBrokenDown) {
+              matchingIds.add(car.id);
+            } else if (car.type === type) {
+              matchingIds.add(car.id);
+            }
+          });
+          setHighlightedVehicleIds(matchingIds);
+      } else if (action.name === 'find_incidents_by_severity') {
+          const { severity } = action.args;
+          const matchingIds = new Set<string>();
+          incidents.forEach(incident => {
+              if (incident.severity === severity) {
+                  matchingIds.add(incident.id);
+              }
+          });
+          setHighlightedIncidentIds(matchingIds);
       }
     }
-
-    const intersectionLabels = intersections.map(i => i.label);
-    const intelResponse = await getRealWorldIntel(query, currentCity, intersectionLabels, location);
-
-    let incidentCreatedMessage: string | null = null;
-    const intelLines = intelResponse.intel.split('\n');
-    const lastLine = intelLines[intelLines.length - 1].trim();
-
-    if (lastLine.startsWith('INCIDENT::')) {
-        const parts = lastLine.split('::').map(p => p.trim());
-        if (parts.length === 4) {
-            const [_, intersectionLabel, type, description] = parts;
-            const intersection = intersections.find(i => i.label === intersectionLabel);
-            
-            const validTypes = ['ACCIDENT', 'CONSTRUCTION'];
-            if (intersection && validTypes.includes(type)) {
-                const newIncident: Incident = {
-                    id: `intel-${Date.now()}`,
-                    type: type as 'ACCIDENT' | 'CONSTRUCTION',
-                    location: {
-                        x: (intersection.x + 0.5) * BLOCK_SIZE,
-                        y: (intersection.y + 0.5) * BLOCK_SIZE,
-                    },
-                    description: description || 'Incident reported by AI based on real-world data.',
-                    severity: 'HIGH',
-                    timestamp: Date.now(),
-                };
-
-                setIncidents(prev => [...prev, newIncident]);
-                
-                intelResponse.intel = intelLines.slice(0, -1).join('\n').trim();
-                incidentCreatedMessage = `Logged a new '${type}' incident at '${intersectionLabel}' in the simulation.`;
-            }
-        }
-    }
-
-    if (incidentCreatedMessage) {
-        (intelResponse as any).incidentCreatedMessage = incidentCreatedMessage;
-    }
-
-    setRealWorldIntel(intelResponse);
-    setIsIntelLoading(false);
+    setSearchQuery('');
+    setIsAiSearching(false);
   };
   
-  const applyGeminiSuggestions = () => {
-    if (!geminiAnalysis || geminiAnalysis.suggestedChanges.length === 0) return;
-    
-    const updatedIds = new Set<string>();
-    
-    setIntersections(prev => 
-      prev.map(i => {
-        const change = geminiAnalysis.suggestedChanges.find(c => c.intersectionId === i.id);
-        if (change) {
-          updatedIds.add(i.id);
-          return { ...i, greenDuration: change.newGreenDuration };
-        }
-        return i;
-      })
-    );
-    
-    setRecentlyUpdatedJunctions(updatedIds);
-    setTimeout(() => {
-      setRecentlyUpdatedJunctions(new Set());
-    }, 5000);
-
-    setGeminiAnalysis(null);
-  };
-
-  const initializeDashboard = (city: string) => {
-    setCurrentCity(city);
-    setIntersections(generateIntersections(CITY_CONFIGS[city]));
-    setRoads(generateRoads(city));
-    setCars([]);
-    setIncidents([]);
-    setStats({ totalCars: 0, avgSpeed: 0, congestionLevel: 0, carbonEmission: 0, incidents: 0 });
-    setActiveTab('OVERVIEW');
-    setSelectedIntersectionId(null);
-    setSelectedCarId(null);
-    setSelectedIncidentId(null);
-    setIsRunning(true);
-    setGeminiAnalysis(null);
-    setRealWorldIntel(null);
-  };
-
-  const handleNavigate = (page: string) => {
-    if (page === 'DASHBOARD') {
-      setIsBooting(true);
-    } else {
-      setIsBooting(false);
-      setViewState(page as ViewState);
-    }
-  };
-
-  const selectedIntersection = intersections.find(i => i.id === selectedIntersectionId);
-  const selectedCar = cars.find(c => c.id === selectedCarId);
-  const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
-  
-  if (isBooting) {
-    return <SystemBoot onComplete={() => {
-        initializeDashboard(currentCity);
-        setIsBooting(false);
-        setViewState('DASHBOARD');
-    }} />;
-  }
-
-  if (viewState === 'LANDING') return <LandingPage onNavigate={handleNavigate} />;
-  if (viewState === 'FEATURES') return <FeaturesPage onNavigate={handleNavigate} />;
-  if (viewState === 'PUBLIC_MAP') return <LiveMapPage onNavigate={handleNavigate} />;
-  if (viewState === 'PUBLIC_DATA') return <PublicDataPage onNavigate={handleNavigate} />;
-  if (viewState === 'API_DOCS') return <ApiDocsPage onNavigate={handleNavigate} />;
-  if (viewState === 'AI_FEATURES') return <AiFeaturesPage onNavigate={handleNavigate} />;
-  
-  return (
-    <div className="w-full h-screen bg-background bg-mesh text-gray-300 font-sans overflow-hidden flex animate-in fade-in duration-700">
+  useEffect(() => {
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      const cityResults = Object.keys(CITY_CONFIGS)
+        .filter(name => name.toLowerCase().includes(lowerQuery))
+        .map(name => ({ type: 'CITY', id: name, name } as SearchResult));
       
-      <div className="scanline"></div>
-      
-      {/* --- SIDEBAR --- */}
-      <aside className="w-[380px] flex-shrink-0 glass rounded-r-2xl flex flex-col border-r border-t border-b border-white/5 z-20">
-        <header className="h-16 flex-shrink-0 flex items-center gap-3 px-4 border-b border-white/5">
-           <div className="w-9 h-9 rounded bg-gradient-to-br from-saffron to-red-600 flex items-center justify-center shadow-lg shadow-saffron/20 group cursor-pointer hover:scale-105 transition-transform" onClick={() => handleNavigate('LANDING')}>
-               <GlobeAltIcon className="w-5 h-5 text-white group-hover:rotate-180 transition-transform duration-700" />
-           </div>
-           <div>
-               <h1 className="text-xl font-tech font-bold tracking-[0.1em] text-white leading-none">
-                 BHARAT<span className="text-saffron">FLOW</span>
-               </h1>
-               <div className="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase">
-                 COMMAND & CONTROL
-               </div>
-           </div>
-        </header>
+      const intersectionResults = intersections
+        .filter(i => i.label.toLowerCase().includes(lowerQuery))
+        .map(i => ({ type: 'INTERSECTION', id: i.id, name: i.label } as SearchResult));
         
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-shrink-0 p-4 border-b border-white/5">
-            <div className="grid grid-cols-2 gap-3">
-              <StatsCard label="Congestion" value={`${stats.congestionLevel}%`} color={stats.congestionLevel > 60 ? 'danger' : 'success'} icon={<SignalIcon className="w-4 h-4"/>}/>
-              <StatsCard label="Active Units" value={stats.totalCars} color="primary" icon={<TruckIcon className="w-4 h-4"/>}/>
-              <StatsCard label="Avg. Speed" value={`${stats.avgSpeed.toFixed(0)} px/f`} color="accent" icon={<BoltIcon className="w-4 h-4"/>}/>
-              <StatsCard label="Incidents" value={stats.incidents} color={stats.incidents > 0 ? 'warning' : 'saffron'} icon={<ExclamationTriangleIcon className="w-4 h-4"/>} />
+      const roadResults = roads
+        .filter(r => r.name.toLowerCase().includes(lowerQuery))
+        .map(r => ({ type: 'ROAD', id: r.id, name: r.name } as SearchResult));
+
+      setSearchResults([...cityResults, ...intersectionResults, ...roadResults]);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery, intersections, roads]);
+
+  const selectedIntersection = useMemo(() => intersections.find(i => i.id === selectedIntersectionId), [intersections, selectedIntersectionId]);
+  const selectedCar = useMemo(() => cars.find(c => c.id === selectedCarId), [cars, selectedCarId]);
+  const selectedIncident = useMemo(() => incidents.find(i => i.id === selectedIncidentId), [incidents, selectedIncidentId]);
+
+  return (
+    <>
+      {isBooting && <SystemBoot onComplete={handleBootComplete} />}
+
+      {viewState === 'LANDING' && <LandingPage onNavigate={handleNavigate} />}
+      {viewState === 'FEATURES' && <FeaturesPage onNavigate={handleNavigate} />}
+      {viewState === 'AI_FEATURES' && <AiFeaturesPage onNavigate={handleNavigate} />}
+      {viewState === 'REALTIME_AI' && <RealtimeAiPage onNavigate={handleNavigate} />}
+      {viewState === 'JUNCTIONS_AI' && <JunctionsAiPage onNavigate={handleNavigate} />}
+      {viewState === 'ML_DESIGN' && <MlDesignPage onNavigate={handleNavigate} />}
+      {viewState === 'PUBLIC_MAP' && <LiveMapPage onNavigate={handleNavigate} />}
+      {viewState === 'PUBLIC_DATA' && <PublicDataPage onNavigate={handleNavigate} />}
+      {viewState === 'API_DOCS' && <ApiDocsPage onNavigate={handleNavigate} />}
+      
+      <div className={`
+        fixed inset-0 bg-mesh bg-mesh-pattern transition-opacity duration-1000
+        ${viewState === 'DASHBOARD' ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+      `}>
+        <div className="w-full h-full p-2.5 flex gap-2.5">
+
+          {/* Left Panel: Main Simulation */}
+          <div className="flex-[3] relative">
+            <SimulationSection 
+                currentCity={currentCity}
+                isRunning={isRunning}
+                setIsRunning={setIsRunning}
+                intersections={intersections}
+                setIntersections={setIntersections}
+                cars={cars}
+                setCars={setCars}
+                onUpdateStats={updateStats}
+                onIntersectionSelect={handleIntersectionSelect}
+                onCarSelect={handleCarSelect}
+                selectedCarId={selectedCarId}
+                stats={stats}
+                viewMode={viewMode}
+                setViewMode={setViewMode}
+                cvModeActive={cvModeActive}
+                setCvModeActive={setCvModeActive}
+                recentlyUpdatedJunctions={recentlyUpdatedJunctions}
+                incidents={incidents}
+                onIncidentSelect={handleIncidentSelect}
+                setIncidents={setIncidents}
+                selectedIncidentId={selectedIncidentId}
+                closedRoads={new Set(incidents.filter(i => i.blocksSegmentId).map(i => i.blocksSegmentId!))}
+                roads={roads}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                searchResults={searchResults}
+                onSearchResultSelect={handleSearchResultSelect}
+                isAiSearching={isAiSearching}
+                handleAiSearch={handleAiSearch}
+                highlightedVehicleIds={highlightedVehicleIds}
+                highlightedIncidentIds={highlightedIncidentIds}
+            />
+          </div>
+
+          {/* Right Panel: Controls & Details */}
+          <div className="flex-1 min-w-[380px] flex flex-col gap-2.5">
+            <div className="relative flex-1">
+               {activeTab === 'CCTV' ? <CameraFeed /> : (
+                 <div className="absolute inset-0 bg-surfaceHighlight/30 rounded-2xl border border-white/5 p-1.5 backdrop-blur-sm">
+                    <div className="w-full h-full bg-background/50 rounded-xl border border-white/5 flex flex-col">
+                        <div className="h-12 border-b border-white/5 bg-surface/50 flex items-center px-4">
+                           <h2 className="text-sm font-tech font-bold text-white tracking-widest uppercase">
+                            {activeTab} DETAILS
+                           </h2>
+                        </div>
+                        <div className="flex-1 min-h-0">
+                           {activeTab === 'OVERVIEW' && <OverviewPanel stats={stats} currentCity={currentCity} totalJunctions={intersections.length} />}
+                           {activeTab === 'JUNCTION' && selectedIntersection && <IntersectionDetails intersection={selectedIntersection} setIntersections={setIntersections} queueMap={queueLengthMap} />}
+                           {activeTab === 'UNIT' && selectedCar && <VehicleDetails car={selectedCar} intersections={intersections} roads={roads} />}
+                           {activeTab === 'INTEL' && <IntelFeed analysis={geminiAnalysis} isAnalyzing={isAnalyzing} onAnalyze={runGeminiAnalysis} onApply={applyGeminiSuggestions} realWorldIntel={realWorldIntel} isIntelLoading={isIntelLoading} onGetIntel={getIntel} onOpenResponsibleAiModal={() => setIsResponsibleAiModalOpen(true)} incidentCreatedMessage={intelIncidentMessage} />}
+                           {activeTab === 'INCIDENT' && selectedIncident && <IncidentDetails incident={selectedIncident} isAnalyzing={isIncidentAnalyzing} analysis={geminiIncidentAnalysis} onAnalyze={runIncidentAnalysis} roads={roads} />}
+                           {activeTab === 'DATA_HUB' && <DataHub incidents={incidents} cars={cars} roads={roads} onSelectIncident={handleIncidentSelect} onSelectCar={handleCarSelect} />}
+                        </div>
+                    </div>
+                </div>
+               )}
+            </div>
+
+            <div className="flex-1 bg-surfaceHighlight/30 rounded-2xl border border-white/5 p-1.5 backdrop-blur-sm">
+               <div className="w-full h-full bg-background/50 rounded-xl border border-white/5 flex flex-col">
+                   <nav className="h-12 border-b border-white/5 bg-surface/50 grid grid-cols-7">
+                        {[
+                          { id: 'OVERVIEW', icon: ChartPieIcon }, { id: 'JUNCTION', icon: AdjustmentsHorizontalIcon },
+                          { id: 'UNIT', icon: TruckIcon }, { id: 'INTEL', icon: SparklesIcon },
+                          { id: 'CCTV', icon: VideoCameraIcon }, { id: 'INCIDENT', icon: ExclamationTriangleIcon },
+                          { id: 'DATA_HUB', icon: CircleStackIcon }
+                        ].map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id as ActiveTab)}
+                                className={`flex items-center justify-center transition-colors border-b-2 ${activeTab === item.id ? 'text-accent border-accent bg-accent/5' : 'text-gray-500 border-transparent hover:bg-white/5 hover:text-white'}`}
+                                title={item.id}
+                            >
+                                <item.icon className="w-5 h-5" />
+                            </button>
+                        ))}
+                   </nav>
+                   <div className="flex-1 p-2 flex flex-col gap-2 overflow-y-auto">
+                     <StatsCard label="Congestion" value={`${stats.congestionLevel}%`} unit="GRIDLOAD" color="danger" icon={<SignalIcon className="w-5 h-5"/>}/>
+                     <StatsCard label="Avg Speed" value={stats.avgSpeed.toFixed(1)} unit="px/f" color="accent" icon={<BoltIcon className="w-5 h-5"/>} />
+                     <StatsCard label="Simulated CO2" value={stats.carbonEmission.toFixed(2)} unit="kg" color="saffron" icon={<CloudIcon className="w-5 h-5"/>}/>
+                   </div>
+                   <button onClick={() => setViewState('LANDING')} className="m-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 text-xs font-bold flex items-center justify-center gap-2">
+                     <ArrowLeftOnRectangleIcon className="w-4 h-4"/>
+                     <span>DISCONNECT</span>
+                   </button>
+               </div>
             </div>
           </div>
-
-          <nav className="flex-shrink-0 flex justify-around p-2 bg-black/20">
-            {[
-              { id: 'OVERVIEW', icon: ChartPieIcon, label: 'Overview' },
-              { id: 'JUNCTION', icon: AdjustmentsHorizontalIcon, label: 'Junction' },
-              { id: 'UNIT', icon: TruckIcon, label: 'Unit' },
-              { id: 'INCIDENT', icon: ExclamationTriangleIcon, label: 'Incident' },
-              { id: 'INTEL', icon: SparklesIcon, label: 'Intel' },
-              { id: 'CCTV', icon: VideoCameraIcon, label: 'CCTV' },
-            ].map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id as ActiveTab)}
-                className={`flex-1 flex flex-col items-center p-2 rounded-lg transition-colors text-xs
-                  ${activeTab === tab.id ? 'bg-accent/10 text-accent' : 'text-gray-500 hover:bg-white/5'}
-                  ${
-                    ((!selectedIntersection && tab.id === 'JUNCTION') || 
-                     (!selectedCar && tab.id === 'UNIT') ||
-                     (!selectedIncident && tab.id === 'INCIDENT')) 
-                     ? 'opacity-50 cursor-not-allowed' : ''
-                  }
-                `}
-                disabled={
-                    (!selectedIntersection && tab.id === 'JUNCTION') || 
-                    (!selectedCar && tab.id === 'UNIT') ||
-                    (!selectedIncident && tab.id === 'INCIDENT')
-                }
-              >
-                <tab.icon className="w-5 h-5 mb-1"/>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-
-          <div className="flex-1 min-h-0 relative">
-            {activeTab === 'OVERVIEW' &&
-              <OverviewPanel
-                stats={stats}
-                currentCity={currentCity}
-                totalJunctions={intersections.length}
-              />
-            }
-            {activeTab === 'JUNCTION' && selectedIntersection && 
-              <IntersectionDetails 
-                intersection={selectedIntersection} 
-                setIntersections={setIntersections}
-                queueMap={queueLengthMap}
-              />
-            }
-            {activeTab === 'UNIT' && selectedCar && 
-              <VehicleDetails car={selectedCar} intersections={intersections} roads={roads} />
-            }
-            {activeTab === 'INCIDENT' && selectedIncident && 
-              <IncidentDetails
-                incident={selectedIncident}
-                isAnalyzing={isIncidentAnalyzing}
-                analysis={geminiIncidentAnalysis}
-                onAnalyze={runGeminiIncidentAnalysis}
-                roads={roads}
-              />
-            }
-            {activeTab === 'INTEL' && 
-              <IntelFeed 
-                analysis={geminiAnalysis}
-                isAnalyzing={isAnalyzing}
-                onAnalyze={runGeminiAnalysis}
-                onApply={applyGeminiSuggestions}
-                realWorldIntel={realWorldIntel}
-                isIntelLoading={isIntelLoading}
-                onGetIntel={runRealWorldIntel}
-              />
-            }
-          </div>
         </div>
-      </aside>
+      </div>
       
-      {/* --- MAIN CONTENT --- */}
-      <main className="flex-1 relative p-4">
-        {activeTab !== 'CCTV' ? (
-          <SimulationSection
-            currentCity={currentCity}
-            isRunning={isRunning}
-            setIsRunning={setIsRunning}
-            intersections={intersections}
-            setIntersections={setIntersections}
-            cars={cars}
-            setCars={setCars}
-            onUpdateStats={handleUpdateStats}
-            onIntersectionSelect={handleIntersectionSelect}
-            onCarSelect={handleCarSelect}
-            onIncidentSelect={handleIncidentSelect}
-            incidents={incidents}
-            selectedIncidentId={selectedIncidentId}
-            selectedCarId={selectedCarId}
-            stats={stats}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            cvModeActive={cvModeActive}
-            setCvModeActive={setCvModeActive}
-            recentlyUpdatedJunctions={recentlyUpdatedJunctions}
-            closedRoads={closedRoads}
-            roads={roads}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            searchResults={searchResults}
-            onSearchResultSelect={handleSearchResultSelect}
-          />
-        ) : (
-          <CameraFeed />
-        )}
-      </main>
-    </div>
+      <ResponsibleAiModal 
+        isOpen={isResponsibleAiModalOpen}
+        onClose={() => setIsResponsibleAiModalOpen(false)}
+        analysis={geminiAnalysis}
+        analysisInput={lastAnalysisInput}
+        stats={stats}
+      />
+    </>
   );
 };
 

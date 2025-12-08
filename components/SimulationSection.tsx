@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SimulationCanvas } from './SimulationCanvas';
 import { TrafficStats, Intersection, Car, Incident, Road, SearchResult } from '../types';
-import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon, CpuChipIcon, MagnifyingGlassIcon, MapIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, PauseIcon, ArrowsPointingOutIcon, GlobeAsiaAustraliaIcon, Squares2X2Icon, CpuChipIcon, MagnifyingGlassIcon, MapIcon, ArrowsRightLeftIcon, SparklesIcon } from '@heroicons/react/24/outline';
 
 interface SimulationSectionProps {
   currentCity: string;
@@ -23,6 +23,7 @@ interface SimulationSectionProps {
   recentlyUpdatedJunctions: Set<string>;
   incidents: Incident[];
   onIncidentSelect: (id: string) => void;
+  setIncidents: React.Dispatch<React.SetStateAction<Incident[]>>;
   selectedIncidentId: string | null;
   closedRoads: Set<string>;
   roads: Road[];
@@ -30,6 +31,10 @@ interface SimulationSectionProps {
   setSearchQuery: (query: string) => void;
   searchResults: SearchResult[];
   onSearchResultSelect: (result: SearchResult) => void;
+  isAiSearching: boolean;
+  handleAiSearch: (query: string) => void;
+  highlightedVehicleIds: Set<string> | null;
+  highlightedIncidentIds: Set<string> | null;
 }
 
 export const SimulationSection: React.FC<SimulationSectionProps> = ({
@@ -52,13 +57,18 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
   recentlyUpdatedJunctions,
   incidents,
   onIncidentSelect,
+  setIncidents,
   selectedIncidentId,
   closedRoads,
   roads,
   searchQuery,
   setSearchQuery,
   searchResults,
-  onSearchResultSelect
+  onSearchResultSelect,
+  isAiSearching,
+  handleAiSearch,
+  highlightedVehicleIds,
+  highlightedIncidentIds,
 }) => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
@@ -73,6 +83,13 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
 
   const resultOrder: SearchResult['type'][] = ['CITY', 'INTERSECTION', 'ROAD'];
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchQuery) {
+      e.preventDefault();
+      handleAiSearch(searchQuery);
+      setIsSearchFocused(false);
+    }
+  };
 
   return (
     <main className={`
@@ -99,13 +116,24 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                         <input
                             type="text"
-                            placeholder="Search city, intersection, or road..."
+                            placeholder="Filter or ask AI (e.g., 'find police cars')"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-                            className="w-full bg-surface/80 border border-border rounded-lg pl-9 pr-4 py-1.5 text-sm placeholder-gray-500 focus:ring-1 focus:ring-accent focus:border-accent transition-all"
+                            onKeyDown={handleKeyDown}
+                            className="w-full bg-surface/80 border border-border rounded-lg pl-9 pr-20 py-1.5 text-sm placeholder-gray-500 focus:ring-1 focus:ring-accent focus:border-accent transition-all"
                         />
+                         {isAiSearching ? (
+                            <svg className="animate-spin absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        ) : (
+                           searchQuery && <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center text-gray-600 text-[10px] font-mono border border-gray-700 rounded px-1.5 py-0.5">
+                                AI <span className="ml-1">↵</span>
+                            </div>
+                        )}
                          {isSearchFocused && searchResults.length > 0 && (
                             <div className="absolute top-full mt-2 w-full bg-surface border border-border rounded-lg shadow-2xl z-50 overflow-hidden animate-in fade-in duration-200">
                                 <ul className="max-h-80 overflow-y-auto">
@@ -212,9 +240,12 @@ export const SimulationSection: React.FC<SimulationSectionProps> = ({
                           recentlyUpdatedJunctions={recentlyUpdatedJunctions}
                           incidents={incidents}
                           onIncidentSelect={onIncidentSelect}
+                          setIncidents={setIncidents}
                           selectedIncidentId={selectedIncidentId}
                           closedRoads={closedRoads}
                           roads={roads}
+                          highlightedVehicleIds={highlightedVehicleIds}
+                          highlightedIncidentIds={highlightedIncidentIds}
                       />
                    </div>
                    

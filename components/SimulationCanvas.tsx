@@ -17,9 +17,13 @@ interface SimulationCanvasProps {
   recentlyUpdatedJunctions: Set<string>;
   incidents: Incident[];
   onIncidentSelect: (id: string) => void;
+  setIncidents: React.Dispatch<React.SetStateAction<Incident[]>>;
   selectedIncidentId: string | null;
   closedRoads: Set<string>;
   roads: Road[];
+  highlightedVehicleIds: Set<string> | null;
+  highlightedIncidentIds: Set<string> | null;
+  highlightedIntersectionId?: string | null;
 }
 
 const turnOptions = ['straight', 'left', 'right'] as const;
@@ -42,9 +46,13 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
   recentlyUpdatedJunctions,
   incidents,
   onIncidentSelect,
+  setIncidents,
   selectedIncidentId,
   closedRoads,
   roads,
+  highlightedVehicleIds,
+  highlightedIncidentIds,
+  highlightedIntersectionId,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameCountRef = useRef(0);
@@ -61,6 +69,9 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     selectedIncidentId: selectedIncidentId,
     closedRoads: closedRoads,
     roads: roads,
+    highlightedVehicleIds: highlightedVehicleIds,
+    highlightedIncidentIds: highlightedIncidentIds,
+    highlightedIntersectionId: highlightedIntersectionId,
   });
 
   useLayoutEffect(() => {
@@ -77,7 +88,10 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
     physicsState.current.selectedIncidentId = selectedIncidentId;
     physicsState.current.closedRoads = closedRoads;
     physicsState.current.roads = roads;
-  }, [intersections, cars, scenarioKey, selectedCarId, recentlyUpdatedJunctions, incidents, selectedIncidentId, closedRoads, roads]);
+    physicsState.current.highlightedVehicleIds = highlightedVehicleIds;
+    physicsState.current.highlightedIncidentIds = highlightedIncidentIds;
+    physicsState.current.highlightedIntersectionId = highlightedIntersectionId;
+  }, [intersections, cars, scenarioKey, selectedCarId, recentlyUpdatedJunctions, incidents, selectedIncidentId, closedRoads, roads, highlightedVehicleIds, highlightedIncidentIds, highlightedIntersectionId]);
 
   const getLaneCenter = (gridIdx: number, isVertical: boolean, isForward: boolean) => {
     const roadCenter = (gridIdx + 0.5) * BLOCK_SIZE;
@@ -390,6 +404,18 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
 
       ctx.restore();
       
+      if (physicsState.current.highlightedVehicleIds?.has(car.id)) {
+          ctx.strokeStyle = '#3B82F6'; // Blue for highlight
+          ctx.lineWidth = 2;
+          ctx.shadowColor = '#3B82F6';
+          ctx.shadowBlur = 15;
+          const pulse = Math.abs(Math.sin(frameCountRef.current / 15)) * 4;
+          ctx.beginPath();
+          ctx.arc(car.x, car.y, car.length + 5 + pulse, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+      }
+
       if (physicsState.current.selectedCarId === car.id) {
           ctx.strokeStyle = '#FF9933';
           ctx.lineWidth = 2;
@@ -440,6 +466,18 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       
       ctx.shadowBlur = 0;
 
+      if(physicsState.current.highlightedIntersectionId === intersection.id) {
+        ctx.strokeStyle = '#FF9933'; // Saffron color
+        ctx.lineWidth = 3;
+        const pulse = Math.abs(Math.sin(frameCountRef.current / 20)) * 8;
+        ctx.shadowColor = '#FF9933';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(cx, cy, ROAD_WIDTH * 0.7 + pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
       if(physicsState.current.recentlyUpdatedJunctions.has(intersection.id)) {
         ctx.strokeStyle = '#06B6D4';
         ctx.lineWidth = 3;
@@ -481,6 +519,7 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
       incidentsToDraw.forEach(incident => {
          const { x, y } = incident.location;
          const isSelected = incident.id === physicsState.current.selectedIncidentId;
+         const isHighlighted = physicsState.current.highlightedIncidentIds?.has(incident.id);
          const pulse = Math.abs(Math.sin(frameCountRef.current / 20));
          
          ctx.save();
@@ -514,6 +553,16 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
             ctx.beginPath();
             ctx.arc(0, 0, 30 + pulse * 5, 0, Math.PI * 2);
             ctx.stroke();
+         } else if (isHighlighted) {
+            ctx.strokeStyle = '#3B82F6'; // Blue for highlight
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#3B82F6';
+            ctx.shadowBlur = 15;
+            const highlightPulse = Math.abs(Math.sin(frameCountRef.current / 15)) * 4;
+            ctx.beginPath();
+            ctx.arc(0, 0, 25 + highlightPulse, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
          }
 
          ctx.restore();
@@ -567,6 +616,49 @@ export const SimulationCanvas: React.FC<SimulationCanvasProps> = ({
         const car = spawnCar(newCars);
         if (car) newCars.push(car);
       }
+
+      // 2.5. Simulate breakdowns
+      if (frame % 300 === 0 && newCars.length > 10 && !newCars.some(c => c.isBrokenDown)) {
+          const chance = Math.random();
+          if (chance < 0.1) {
+              const breakableCars = newCars.filter(c => c.type !== 'POLICE' && !c.isBrokenDown);
+              if (breakableCars.length > 0) {
+                  const carToBreak = breakableCars[Math.floor(Math.random() * breakableCars.length)];
+                  
+                  // Find the car in the array and modify its state
+                  const carIndex = newCars.findIndex(c => c.id === carToBreak.id);
+                  if (carIndex !== -1) {
+                      newCars[carIndex].isBrokenDown = true;
+                      newCars[carIndex].speed = 0;
+                      newCars[carIndex].state = 'STOPPED';
+
+                      const gridX = Math.floor(carToBreak.x / BLOCK_SIZE);
+                      const gridY = Math.floor(carToBreak.y / BLOCK_SIZE);
+                      let int1Id = `INT-${gridX}-${gridY}`;
+                      let int2Id = '';
+                      if (carToBreak.dir === 'N') int2Id = `INT-${gridX}-${gridY - 1}`;
+                      else if (carToBreak.dir === 'S') int2Id = `INT-${gridX}-${gridY + 1}`;
+                      else if (carToBreak.dir === 'E') int2Id = `INT-${gridX + 1}-${gridY}`;
+                      else if (carToBreak.dir === 'W') int2Id = `INT-${gridX - 1}-${gridY}`;
+                      
+                      const segmentId = [int1Id, int2Id].sort().join('_');
+                      const roadName = physicsState.current.roads.find(r => r.id === segmentId)?.name || 'an unknown road';
+
+                      const newIncident: Incident = {
+                          id: `INC-${Date.now()}`,
+                          type: 'BREAKDOWN',
+                          location: { x: carToBreak.x, y: carToBreak.y },
+                          description: `A ${carToBreak.type} has broken down on ${roadName}, causing a major blockage.`,
+                          severity: 'MEDIUM',
+                          timestamp: Date.now(),
+                          blocksSegmentId: segmentId,
+                      };
+                      setIncidents(prev => [...prev, newIncident]);
+                  }
+              }
+          }
+      }
+
 
       const queueMap: Record<string, number> = {};
 

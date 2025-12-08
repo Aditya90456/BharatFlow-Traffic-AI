@@ -1,5 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { Intersection, TrafficStats, GeminiAnalysis, Incident, GeminiIncidentAnalysis, RealWorldIntel, GroundingChunk } from "../types";
+import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
+import { Intersection, TrafficStats, GeminiAnalysis, Incident, GeminiIncidentAnalysis, RealWorldIntel, GroundingChunk, AiSearchAction, Car, CongestedJunctionInfo, JunctionAnalysisResult } from "../types";
 
 // Lazy initialization singleton
 let ai: GoogleGenAI | null = null;
@@ -25,21 +25,9 @@ const getAIClient = () => {
 };
 
 export const analyzeTraffic = async (
-  intersections: Intersection[],
+  congestedIntersections: CongestedJunctionInfo[],
   stats: TrafficStats,
-  queueMap: Record<string, number>
 ): Promise<GeminiAnalysis> => {
-  const congestedIntersections = intersections.filter(i => {
-    const nsQueue = queueMap[`${i.id}_N`] || 0 + queueMap[`${i.id}_S`] || 0;
-    const ewQueue = queueMap[`${i.id}_E`] || 0 + queueMap[`${i.id}_W`] || 0;
-    return (nsQueue + ewQueue) > 8; // Threshold for being "congested"
-  }).map(i => ({
-      id: i.id,
-      label: i.label,
-      nsQueue: queueMap[`${i.id}_N`] || 0 + queueMap[`${i.id}_S`] || 0,
-      ewQueue: queueMap[`${i.id}_E`] || 0 + queueMap[`${i.id}_W`] || 0
-  }));
-  
   const prompt = `
     Analyze this traffic snapshot.
     
@@ -98,6 +86,103 @@ export const analyzeTraffic = async (
       analysis: "Central Command uplink unstable. Operating on local protocols.",
       suggestedChanges: []
     };
+  }
+};
+
+export const analyzeJunction = async (junctionInfo: CongestedJunctionInfo): Promise<JunctionAnalysisResult> => {
+    const prompt = `
+      You are an AI traffic controller for the "${junctionInfo.label}" junction.
+      Analyze the following live data and provide a tactical recommendation.
+      
+      Live Data:
+      - North-South Queue: ${junctionInfo.nsQueue} vehicles
+      - East-West Queue: ${junctionInfo.ewQueue} vehicles
+      
+      Tasks:
+      1.  **analysis**: Provide a one-sentence analysis of the current situation at this specific junction.
+      2.  **recommendation**: State a clear, single action. Examples: "Extend North-South green light", "Prioritize East-West flow", "Maintain current signal timing", "Slightly reduce North-South green time".
+      3.  **reason**: Give a concise, one-sentence rationale for your recommendation.
+    `;
+    
+    try {
+        const client = getAIClient();
+        const response = await client.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                systemInstruction: SYSTEM_INSTRUCTION,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        analysis: { type: Type.STRING, description: "One-sentence analysis of the junction's status." },
+                        recommendation: { type: Type.STRING, description: "A clear, single action to take." },
+                        reason: { type: Type.STRING, description: "A concise, one-sentence rationale for the action." }
+                    },
+                    required: ["analysis", "recommendation", "reason"]
+                }
+            }
+        });
+
+        if (response.text) {
+            return JSON.parse(response.text);
+        }
+        throw new Error("No response text from Gemini for junction analysis.");
+
+    } catch (error) {
+        console.error("Gemini Junction Analysis Failed:", error);
+        return {
+            analysis: "Failed to connect to AI for tactical analysis.",
+            recommendation: "Operator vigilance advised.",
+            reason: "The AI analysis module is currently unreachable. Follow standard operating procedure."
+        };
+    }
+};
+
+
+export const explainAiSuggestion = async (
+  analysisInput: CongestedJunctionInfo[],
+  suggestion: { intersectionId: string; newGreenDuration: number; reason: string },
+  stats: TrafficStats,
+): Promise<string> => {
+  const targetJunction = analysisInput.find(j => j.id === suggestion.intersectionId);
+
+  const prompt = `
+    You are BharatFlow, an AI Traffic Control System.
+    Your previous analysis of the traffic grid resulted in the following suggestion:
+    - Junction: ${targetJunction?.label || suggestion.intersectionId}
+    - Action: Change green light duration to ${suggestion.newGreenDuration} frames.
+    - Your stated reason was: "${suggestion.reason}"
+
+    The overall grid stats at the time were:
+    - Congestion: ${stats.congestionLevel}%
+    - Average Speed: ${stats.avgSpeed.toFixed(1)} px/f
+
+    The specific data for the affected junction was:
+    - North-South Queue: ${targetJunction?.nsQueue} vehicles
+    - East-West Queue: ${targetJunction?.ewQueue} vehicles
+
+    Task:
+    Explain your reasoning for this specific suggestion in simple, clear terms for a human operator.
+    Focus on the intended outcome and the "if-then" logic.
+    Keep the explanation to 2-3 sentences.
+  `;
+
+  try {
+    const client = getAIClient();
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+      }
+    });
+    
+    return response.text || "Unable to provide an explanation at this time.";
+
+  } catch (error) {
+    console.error("Gemini Suggestion Explanation Failed:", error);
+    return "Explanation service is currently unavailable. Please try again later.";
   }
 };
 
@@ -210,5 +295,89 @@ export const getRealWorldIntel = async (
       intel: "Failed to retrieve real-world intelligence. The search-grounding module may be offline or unreachable.",
       sources: [],
     };
+  }
+};
+
+export const interpretSearchQuery = async (
+  query: string,
+  intersections: Intersection[],
+  cars: Car[],
+  incidents: Incident[],
+): Promise<AiSearchAction[] | null> => {
+  const selectObjectDeclaration: FunctionDeclaration = {
+    name: 'select_object',
+    description: 'Selects a specific object (intersection, vehicle, or road) on the map by its name or ID.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        type: { type: Type.STRING, enum: ['INTERSECTION', 'CAR', 'ROAD'] },
+        name_or_id: { type: Type.STRING, description: 'The name (e.g., "Silk Board") or ID (e.g., "INT-0-0") of the object to select.' },
+      },
+      required: ['type', 'name_or_id'],
+    },
+  };
+
+  const findMostCongestedDeclaration: FunctionDeclaration = {
+    name: 'find_most_congested_junction',
+    description: 'Finds and highlights the intersection with the highest current traffic congestion.',
+    parameters: { type: Type.OBJECT, properties: {} },
+  };
+
+  const findAllUnitsDeclaration: FunctionDeclaration = {
+    name: 'find_all_units_of_type',
+    description: 'Finds and highlights all vehicles of a specific type (e.g., "police", "bus"), including broken down vehicles.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        type: { type: Type.STRING, enum: ['CAR', 'AUTO', 'BUS', 'POLICE', 'BROKEN_DOWN'] },
+      },
+      required: ['type'],
+    },
+  };
+
+  const findIncidentsBySeverityDeclaration: FunctionDeclaration = {
+    name: 'find_incidents_by_severity',
+    description: 'Finds and highlights all incidents of a specific severity level (LOW, MEDIUM, or HIGH).',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        severity: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'] },
+      },
+      required: ['severity'],
+    },
+  };
+
+  const prompt = `
+    You are the natural language interface for the BharatFlow traffic command center.
+    The user has entered the following command: "${query}"
+
+    The current simulation contains the following entities:
+    - ${intersections.length} intersections with labels like: ${intersections.slice(0, 3).map(i => i.label).join(', ')}...
+    - ${cars.length} vehicles, including types: CAR, AUTO, BUS, POLICE. Some might be broken down.
+    - ${incidents.length} incidents with severities: LOW, MEDIUM, HIGH.
+
+    Based on the user's command, call the appropriate function tool.
+  `;
+  
+  try {
+    const client = getAIClient();
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        tools: [{ functionDeclarations: [selectObjectDeclaration, findMostCongestedDeclaration, findAllUnitsDeclaration, findIncidentsBySeverityDeclaration] }],
+      }
+    });
+
+    if (response.functionCalls) {
+      return response.functionCalls as AiSearchAction[];
+    }
+
+    return null;
+
+  } catch (error) {
+    console.error("Gemini Search Interpretation Failed:", error);
+    return null;
   }
 };

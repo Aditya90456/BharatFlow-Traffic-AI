@@ -70,11 +70,15 @@ interface IntelFeedProps {
     realWorldIntel: RealWorldIntel | null;
     isIntelLoading: boolean;
     onGetIntel: (query: string, useLocation: boolean) => void;
+    onOpenResponsibleAiModal: () => void;
+    incidentCreatedMessage: string | null;
 }
 
 export const IntelFeed: React.FC<IntelFeedProps> = ({ 
     analysis, isAnalyzing, onAnalyze, onApply,
-    realWorldIntel, isIntelLoading, onGetIntel
+    realWorldIntel, isIntelLoading, onGetIntel,
+    onOpenResponsibleAiModal,
+    incidentCreatedMessage
 }) => {
     const [query, setQuery] = useState('');
     const [useLocation, setUseLocation] = useState(false);
@@ -84,8 +88,6 @@ export const IntelFeed: React.FC<IntelFeedProps> = ({
             onGetIntel(query, useLocation);
         }
     };
-    
-    const incidentCreatedMessage = (realWorldIntel as any)?.incidentCreatedMessage;
     
     return (
         <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
@@ -201,6 +203,16 @@ export const IntelFeed: React.FC<IntelFeedProps> = ({
                     )}
                     {!isIntelLoading && !realWorldIntel && <p className="m-auto text-gray-600 text-xs text-center">Ask a question about real-world events affecting traffic.</p>}
                 </div>
+            </div>
+
+            <div className="mt-auto pt-4 border-t border-white/10">
+                <button
+                    onClick={onOpenResponsibleAiModal}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-surface hover:bg-surfaceHighlight transition-colors text-sm text-gray-300"
+                >
+                    <ShieldCheckIcon className="w-4 h-4" />
+                    AI Responsibility & Ethics
+                </button>
             </div>
         </div>
     );

@@ -3,6 +3,7 @@
   "description": "Enterprise Traffic Management Dashboard",
   "requestFramePermissions": [
     "camera",
-    "geolocation"
+    "geolocation",
+    "microphone"
   ]
 }

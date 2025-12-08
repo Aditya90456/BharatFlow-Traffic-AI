@@ -5,6 +5,8 @@ export enum LightState {
 }
 
 export type VehicleType = 'CAR' | 'AUTO' | 'BUS' | 'POLICE';
+export type VehicleTypeOrBroken = VehicleType | 'BROKEN_DOWN';
+
 
 export interface Coordinates {
   x: number;
@@ -82,6 +84,12 @@ export interface GeminiAnalysis {
   }[];
 }
 
+export interface JunctionAnalysisResult {
+    analysis: string;
+    recommendation: string;
+    reason: string;
+}
+
 export interface GeminiIncidentAnalysis {
     timestamp: number;
     assessment: string;
@@ -105,4 +113,17 @@ export interface SearchResult {
   type: 'CITY' | 'INTERSECTION' | 'ROAD';
   id: string;
   name: string;
+}
+
+export type AiSearchAction = 
+  | { name: 'select_object', args: { type: 'INTERSECTION' | 'CAR' | 'ROAD', name_or_id: string } } 
+  | { name: 'find_most_congested_junction', args: {} }
+  | { name: 'find_all_units_of_type', args: { type: VehicleTypeOrBroken } }
+  | { name: 'find_incidents_by_severity', args: { severity: 'LOW' | 'MEDIUM' | 'HIGH' } };
+
+export interface CongestedJunctionInfo {
+  id: string;
+  label: string;
+  nsQueue: number;
+  ewQueue: number;
 }
