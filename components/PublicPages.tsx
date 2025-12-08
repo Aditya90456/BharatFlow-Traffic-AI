@@ -512,6 +512,9 @@ export const RealtimeAiPage: React.FC<{onNavigate: (p: string) => void}> = ({ on
     const nextStartTimeRef = useRef(0);
     const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
     const transcriptEndRef = useRef<HTMLDivElement>(null);
+    
+    const currentInputRef = useRef('');
+    const currentOutputRef = useRef('');
 
     useEffect(() => {
         transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -550,6 +553,8 @@ export const RealtimeAiPage: React.FC<{onNavigate: (p: string) => void}> = ({ on
     const startSession = async () => {
         setStatus('CONNECTING');
         setErrorMessage(null);
+        currentInputRef.current = '';
+        currentOutputRef.current = '';
 
         if (!aiRef.current) {
             try {
@@ -597,25 +602,29 @@ export const RealtimeAiPage: React.FC<{onNavigate: (p: string) => void}> = ({ on
                     scriptProcessorRef.current.connect(inputAudioContextRef.current!.destination);
                 },
                 onmessage: async (message: LiveServerMessage) => {
-                    if (message.serverContent) {
-                        if (message.serverContent.inputTranscription) {
-                            setCurrentInput(prev => prev + message.serverContent.inputTranscription.text);
+                    const content = message.serverContent;
+                    if (content) {
+                        if (content.inputTranscription?.text) {
+                            currentInputRef.current += content.inputTranscription.text;
+                            setCurrentInput(currentInputRef.current);
                         }
-                        if (message.serverContent.outputTranscription) {
-                            setCurrentOutput(prev => prev + message.serverContent.outputTranscription.text);
+                        if (content.outputTranscription?.text) {
+                            currentOutputRef.current += content.outputTranscription.text;
+                            setCurrentOutput(currentOutputRef.current);
                             if (status !== 'SPEAKING') setStatus('SPEAKING');
                         }
-                        if (message.serverContent.turnComplete) {
-                            const finalInput = currentInput + (message.serverContent.inputTranscription?.text || '');
-                            const finalOutput = currentOutput + (message.serverContent.outputTranscription?.text || '');
-                            if (finalInput.trim() && finalOutput.trim()) {
-                                setHistory(prev => [...prev, { userInput: finalInput, modelOutput: finalOutput }]);
+                        if (content.turnComplete) {
+                            if (currentInputRef.current.trim() && currentOutputRef.current.trim()) {
+                                setHistory(prev => [...prev, { userInput: currentInputRef.current, modelOutput: currentOutputRef.current }]);
                             }
+                            currentInputRef.current = '';
+                            currentOutputRef.current = '';
                             setCurrentInput('');
                             setCurrentOutput('');
                             setStatus('LISTENING');
                         }
                     }
+
                     const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                     if (audioData) {
                         nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContextRef.current!.currentTime);
