@@ -4,7 +4,7 @@ import { GoogleGenAI, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { SimulationCanvas } from './SimulationCanvas';
 import { Car, Incident, Intersection, JunctionAnalysisResult, LightState, Road, TrafficStats } from '../types';
 import { analyzeJunction } from '../services/geminiService';
-import { CITY_CONFIGS, INITIAL_GREEN_DURATION, GRID_SIZE } from '../constants';
+import { CITY_CONFIGS, INITIAL_GREEN_DURATION, GRID_SIZE, ROAD_NAMES } from '../constants';
 
 
 // Shared Layout for Public Pages
@@ -702,8 +702,46 @@ const generateSimIntersections = (cityNames: string[]): Intersection[] => {
   return arr;
 };
 
+const generateSimRoads = (city: string): Road[] => {
+    const roadNames = ROAD_NAMES[city] || ROAD_NAMES["Bangalore"];
+    const roads: Road[] = [];
+    let hIdx = 0;
+    let vIdx = 0;
+
+    for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+            // Horizontal road to the right
+            if (x < GRID_SIZE - 1) {
+                const id1 = `INT-${x}-${y}`;
+                const id2 = `INT-${x + 1}-${y}`;
+                roads.push({
+                    id: [id1, id2].sort().join('_'),
+                    name: roadNames.horizontal[hIdx % roadNames.horizontal.length],
+                    intersection1Id: id1,
+                    intersection2Id: id2,
+                });
+            }
+            // Vertical road downwards
+            if (y < GRID_SIZE - 1) {
+                const id1 = `INT-${x}-${y}`;
+                const id2 = `INT-${x}-${y + 1}`;
+                roads.push({
+                    id: [id1, id2].sort().join('_'),
+                    name: roadNames.vertical[vIdx % roadNames.vertical.length],
+                    intersection1Id: id1,
+                    intersection2Id: id2,
+                });
+            }
+        }
+        hIdx++;
+        vIdx++;
+    }
+    return roads;
+};
+
 export const JunctionsAiPage: React.FC<{onNavigate: (p: string) => void}> = ({ onNavigate }) => {
     const [intersections, setIntersections] = useState<Intersection[]>(() => generateSimIntersections(CITY_CONFIGS["Bangalore"]));
+    const [roads, setRoads] = useState<Road[]>(() => generateSimRoads("Bangalore"));
     const [cars, setCars] = useState<Car[]>([]);
     const [incidents, setIncidents] = useState<Incident[]>([]);
     const [queueLengthMap, setQueueLengthMap] = useState<Record<string, number>>({});
@@ -760,7 +798,7 @@ export const JunctionsAiPage: React.FC<{onNavigate: (p: string) => void}> = ({ o
                           setIncidents={setIncidents}
                           selectedIncidentId={null}
                           closedRoads={new Set()}
-                          roads={[]}
+                          roads={roads}
                           highlightedVehicleIds={null}
                           highlightedIncidentIds={null}
                           highlightedIntersectionId={selectedJunctionId}
