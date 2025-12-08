@@ -597,20 +597,24 @@ export const RealtimeAiPage: React.FC<{onNavigate: (p: string) => void}> = ({ on
                     scriptProcessorRef.current.connect(inputAudioContextRef.current!.destination);
                 },
                 onmessage: async (message: LiveServerMessage) => {
-                    if (message.serverContent?.inputTranscription) setCurrentInput(prev => prev + message.serverContent.inputTranscription.text);
-                    if (message.serverContent?.outputTranscription) {
-                        setCurrentOutput(prev => prev + message.serverContent.outputTranscription.text);
-                        if (status !== 'SPEAKING') setStatus('SPEAKING');
-                    }
-                    if (message.serverContent?.turnComplete) {
-                        const finalInput = currentInput + (message.serverContent?.inputTranscription?.text || '');
-                        const finalOutput = currentOutput + (message.serverContent?.outputTranscription?.text || '');
-                        if (finalInput.trim() && finalOutput.trim()) {
-                            setHistory(prev => [...prev, { userInput: finalInput, modelOutput: finalOutput }]);
+                    if (message.serverContent) {
+                        if (message.serverContent.inputTranscription) {
+                            setCurrentInput(prev => prev + message.serverContent.inputTranscription.text);
                         }
-                        setCurrentInput('');
-                        setCurrentOutput('');
-                        setStatus('LISTENING');
+                        if (message.serverContent.outputTranscription) {
+                            setCurrentOutput(prev => prev + message.serverContent.outputTranscription.text);
+                            if (status !== 'SPEAKING') setStatus('SPEAKING');
+                        }
+                        if (message.serverContent.turnComplete) {
+                            const finalInput = currentInput + (message.serverContent.inputTranscription?.text || '');
+                            const finalOutput = currentOutput + (message.serverContent.outputTranscription?.text || '');
+                            if (finalInput.trim() && finalOutput.trim()) {
+                                setHistory(prev => [...prev, { userInput: finalInput, modelOutput: finalOutput }]);
+                            }
+                            setCurrentInput('');
+                            setCurrentOutput('');
+                            setStatus('LISTENING');
+                        }
                     }
                     const audioData = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                     if (audioData) {
